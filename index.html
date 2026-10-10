@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Frontech Sales Order</title>
+<meta name="description" content="Frontech field sales order app">
+<meta name="theme-color" content="#1e1b4b">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FT Orders">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  html,body{margin:0;height:100%;background:#1e1b4b;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+  #app{position:fixed;inset:0;width:100%;height:100%;border:0;background:#1e1b4b}
+  #splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#c7d2fe;background:radial-gradient(circle at 30% 20%,#312e81,#1e1b4b 60%);transition:opacity .35s;z-index:2}
+  #splash img{width:76px;height:76px;border-radius:20px;box-shadow:0 12px 40px #6d28d966}
+  #splash b{color:#fff;font-size:20px;letter-spacing:-.01em}
+  .dots{display:flex;gap:6px}.dots i{width:7px;height:7px;border-radius:50%;background:#a5b4fc;animation:b 1s infinite ease-in-out}
+  .dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+  @keyframes b{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+  #msg{font-size:14px;text-align:center;max-width:280px;line-height:1.45}
+  #retry{display:none;border:0;border-radius:12px;background:#fff;color:#312e81;font-weight:700;padding:11px 20px;font-size:14px}
+  #inst{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:3;display:none;align-items:center;gap:12px;background:#fff;color:#0f172a;border-radius:16px;padding:12px 12px 12px 14px;box-shadow:0 12px 40px #0006}
+  #inst img{width:40px;height:40px;border-radius:11px}
+  #inst .t{flex:1;font-size:13px;line-height:1.35}#inst .t b{display:block;font-size:14px}
+  #inst button{border:0;border-radius:11px;font-weight:700;font-size:13.5px;padding:10px 14px;cursor:pointer}
+  #instGo{background:linear-gradient(135deg,#4f46e5,#9333ea);color:#fff}
+  #instX{background:transparent;color:#64748b;font-size:20px!important;padding:6px 8px!important}
+</style>
+</head>
+<body>
+<div id="splash">
+  <img src="icon-192.png" alt="">
+  <b>Frontech Sales Order</b>
+  <div class="dots" id="dots"><i></i><i></i><i></i></div>
+  <div id="msg"></div>
+  <button id="retry" onclick="location.reload()">Try again</button>
+</div>
+<iframe id="app" title="Frontech Sales Order" allow="clipboard-read; clipboard-write; web-share"></iframe>
+<div id="inst">
+  <img src="icon-192.png" alt="">
+  <div class="t" id="instT"><b>Install the app</b>One tap to open from your home screen</div>
+  <button id="instGo">Install</button>
+  <button id="instX" aria-label="Close">&times;</button>
+</div>
+<script>
+  // The only setting: your Google Apps Script web app address.
+  var APP_URL = 'https://script.google.com/macros/s/AKfycbwX-bxO7vyNsoEbyxy-09cwfA-W4rcDOXuJ49j8bJcpRZBRKDzylHt7nGKBSohMsfLo/exec';
+
+  var frame = document.getElementById('app'), splash = document.getElementById('splash');
+  function hideSplash(){ splash.style.opacity = 0; setTimeout(function(){ splash.style.display = 'none'; }, 400); }
+  function offline(){
+    document.getElementById('dots').style.display = 'none';
+    document.getElementById('msg').textContent = 'No internet connection. Check mobile data or Wi-Fi.';
+    document.getElementById('retry').style.display = 'block';
+  }
+  if (navigator.onLine === false) offline();
+  else { frame.addEventListener('load', hideSplash); frame.src = APP_URL; setTimeout(hideSplash, 12000); }
+  window.addEventListener('online', function(){ if (!frame.src) location.reload(); });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+
+  // Install banner: hidden once installed or dismissed.
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  var dismissed = false; try { dismissed = localStorage.getItem('ft_inst_x') === '1'; } catch (e) {}
+  var bar = document.getElementById('inst'), deferred = null;
+  function showBar(){ if (!standalone && !dismissed) setTimeout(function(){ bar.style.display = 'flex'; }, 2500); }
+  document.getElementById('instX').onclick = function(){ bar.style.display = 'none'; try { localStorage.setItem('ft_inst_x', '1'); } catch (e) {} };
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; showBar(); });
+  document.getElementById('instGo').onclick = function(){
+    if (deferred) { deferred.prompt(); deferred.userChoice.then(function(){ bar.style.display = 'none'; deferred = null; }); }
+  };
+  window.addEventListener('appinstalled', function(){ bar.style.display = 'none'; });
+  var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios && !standalone) {
+    document.getElementById('instT').innerHTML = '<b>Add to Home Screen</b>Tap the Share button, then “Add to Home Screen”';
+    document.getElementById('instGo').style.display = 'none';
+    showBar();
+  }
+</script>
+</body>
+</html>
