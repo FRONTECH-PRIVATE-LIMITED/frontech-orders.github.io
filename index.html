@@ -31,6 +31,17 @@
   #inst button{border:0;border-radius:11px;font-weight:700;font-size:13.5px;padding:10px 14px;cursor:pointer}
   #instGo{background:linear-gradient(135deg,#4f46e5,#9333ea);color:#fff}
   #instX{background:transparent;color:#64748b;font-size:20px!important;padding:6px 8px!important}
+  #guide{position:fixed;inset:0;z-index:4;display:none;align-items:flex-end;justify-content:center;background:#0f172acc}
+  #guide .sh{background:#fff;color:#0f172a;width:100%;max-width:460px;border-radius:22px 22px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px #0006}
+  #guide h3{margin:0 0 4px;font-size:18px}#guide .sub{margin:0 0 14px;font-size:13px;color:#64748b}
+  #guide ol{list-style:none;margin:0;padding:0;counter-reset:s}
+  #guide li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid #eef2f7;font-size:14.5px;line-height:1.4}
+  #guide li::before{content:counter(s);flex:0 0 26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#9333ea);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+  #guide .ico{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 5px;margin:0 2px;border-radius:7px;background:#eef2ff;color:#2563eb;font-weight:800}
+  #guide .ico svg{width:17px;height:17px}
+  #guide .note{margin:10px 0 0;font-size:12.5px;color:#64748b;background:#f8fafc;border-radius:12px;padding:10px 12px}
+  #guideX{margin-top:14px;width:100%;border:0;border-radius:13px;padding:13px;font-weight:700;font-size:15px;background:#0f172a;color:#fff}
+  #instGo.ios{background:#0f172a}
 </style>
 </head>
 <body>
@@ -48,6 +59,13 @@
   <button id="instGo">Install</button>
   <button id="instX" aria-label="Close">&times;</button>
 </div>
+<div id="guide" role="dialog" aria-modal="true"><div class="sh">
+  <h3>Add FT Orders to your iPhone</h3>
+  <p class="sub" id="gSub">Takes 10 seconds. After this it opens like a normal app.</p>
+  <ol id="gSteps"></ol>
+  <p class="note" id="gNote"></p>
+  <button id="guideX">Got it</button>
+</div></div>
 <script>
   // The only setting: your Google Apps Script web app address.
   var APP_URL = 'https://script.google.com/macros/s/AKfycbwX-bxO7vyNsoEbyxy-09cwfA-W4rcDOXuJ49j8bJcpRZBRKDzylHt7nGKBSohMsfLo/exec';
@@ -67,19 +85,48 @@
 
   // Install banner: hidden once installed or dismissed.
   var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  var dismissed = false; try { dismissed = localStorage.getItem('ft_inst_x') === '1'; } catch (e) {}
+  var dismissed = false; try { dismissed = localStorage.getItem('ft_inst_x2') === '1'; } catch (e) {}
   var bar = document.getElementById('inst'), deferred = null;
   function showBar(){ if (!standalone && !dismissed) setTimeout(function(){ bar.style.display = 'flex'; }, 2500); }
-  document.getElementById('instX').onclick = function(){ bar.style.display = 'none'; try { localStorage.setItem('ft_inst_x', '1'); } catch (e) {} };
+  document.getElementById('instX').onclick = function(){ bar.style.display = 'none'; try { localStorage.setItem('ft_inst_x2', '1'); } catch (e) {} };
   window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; showBar(); });
   document.getElementById('instGo').onclick = function(){
     if (deferred) { deferred.prompt(); deferred.userChoice.then(function(){ bar.style.display = 'none'; deferred = null; }); }
   };
   window.addEventListener('appinstalled', function(){ bar.style.display = 'none'; });
-  var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var ua = navigator.userAgent;
+  var ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (ios && !standalone) {
-    document.getElementById('instT').innerHTML = '<b>Add to Home Screen</b>Tap the Share button, then “Add to Home Screen”';
-    document.getElementById('instGo').style.display = 'none';
+    var SHARE = '<span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span>';
+    var DOTS = '<span class="ico">&bull;&bull;&bull;</span>';
+    var PLUS = '<span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg></span>';
+    var inApp = /FBAN|FBAV|Instagram|Line\/|GSA\/|LinkedInApp|Twitter|WhatsApp|Snapchat|MicroMessenger/i.test(ua);
+    var chrome = /CriOS/.test(ua), edge = /EdgiOS/.test(ua), firefox = /FxiOS/.test(ua);
+    var steps, note;
+    if (inApp) {
+      steps = ['This page is open inside another app. Tap ' + DOTS + ' or the compass icon and choose <b>Open in Safari</b>.',
+               'In Safari, tap ' + SHARE + ' <b>Share</b> (on newer iPhones it is inside the ' + DOTS + ' menu).',
+               'Scroll down and tap ' + PLUS + ' <b>Add to Home Screen</b>, then <b>Add</b>.'];
+      note = 'Tip: you can also copy the link frontech-orders.github.io and paste it into Safari.';
+    } else if (chrome || edge || firefox) {
+      steps = ['Tap ' + SHARE + ' <b>Share</b> in the address bar (top right)' + (firefox ? ', or the &#9776; menu then Share' : '') + '.',
+               'Tap ' + PLUS + ' <b>Add to Home Screen</b> (scroll down or tap <b>More</b> if you don\'t see it).',
+               'Tap <b>Add</b>. The FT Orders icon appears on your home screen.'];
+      note = 'If Add to Home Screen is missing, open frontech-orders.github.io in Safari and add it from there.';
+    } else {
+      steps = ['Tap ' + SHARE + ' <b>Share</b> at the bottom of Safari. On iOS 26 tap ' + DOTS + ' first, then <b>Share</b>.',
+               'Scroll down and tap ' + PLUS + ' <b>Add to Home Screen</b> (tap <b>View More</b> if you don\'t see it).',
+               'Keep <b>Open as Web App</b> on and tap <b>Add</b>. Open FT Orders from the new home-screen icon.'];
+      note = 'If you opened this link from WhatsApp, first tap the compass / Safari icon so it opens in Safari.';
+    }
+    document.getElementById('gSteps').innerHTML = steps.map(function (t) { return '<li><div>' + t + '</div></li>'; }).join('');
+    document.getElementById('gNote').innerHTML = note;
+    var guide = document.getElementById('guide');
+    function openGuide(){ guide.style.display = 'flex'; }
+    document.getElementById('guideX').onclick = function(){ guide.style.display = 'none'; };
+    guide.addEventListener('click', function(e){ if (e.target === guide) guide.style.display = 'none'; });
+    document.getElementById('instT').innerHTML = '<b>Install FT Orders</b>Add it to your home screen';
+    var go = document.getElementById('instGo'); go.textContent = 'How to install'; go.className = 'ios'; go.onclick = openGuide;
     showBar();
   }
 </script>
