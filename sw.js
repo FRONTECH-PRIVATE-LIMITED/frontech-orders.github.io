@@ -1,7 +1,7 @@
 // Keeps the app shell (this page + icons) on the phone so the app opens instantly.
-// Business data never passes through here: the order app itself loads from Google.
-const CACHE = 'ft-shell-v2';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.png'];
+// Business data never passes through here: the app talks to the central database (Supabase) directly.
+const CACHE = 'ft-shell-v3';
+const SHELL = ['./', './index.html', './app.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -11,7 +11,7 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return;             // Google traffic goes straight to Google
+  if (url.origin !== location.origin) return;             // database traffic goes straight to Supabase
   e.respondWith(
     fetch(e.request).then(r => {                          // network first, so updates show at once
       const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r;

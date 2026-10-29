@@ -67,8 +67,8 @@
   <button id="guideX">Got it</button>
 </div></div>
 <script>
-  // The only setting: your Google Apps Script web app address.
-  var APP_URL = 'https://script.google.com/macros/s/AKfycbwX-bxO7vyNsoEbyxy-09cwfA-W4rcDOXuJ49j8bJcpRZBRKDzylHt7nGKBSohMsfLo/exec';
+  // The app itself (new system on Supabase), served from this same site.
+  var APP_URL = 'app.html';
 
   var frame = document.getElementById('app'), splash = document.getElementById('splash');
   function hideSplash(){ splash.style.opacity = 0; setTimeout(function(){ splash.style.display = 'none'; }, 400); }
@@ -107,12 +107,12 @@
       steps = ['This page is open inside another app. Tap ' + DOTS + ' or the compass icon and choose <b>Open in Safari</b>.',
                'In Safari, tap ' + SHARE + ' <b>Share</b> (on newer iPhones it is inside the ' + DOTS + ' menu).',
                'Scroll down and tap ' + PLUS + ' <b>Add to Home Screen</b>, then <b>Add</b>.'];
-      note = 'Tip: you can also copy the link frontech-orders.github.io and paste it into Safari.';
+      note = 'Tip: you can also copy the link orders.frontech.co.in and paste it into Safari.';
     } else if (chrome || edge || firefox) {
       steps = ['Tap ' + SHARE + ' <b>Share</b> in the address bar (top right)' + (firefox ? ', or the &#9776; menu then Share' : '') + '.',
                'Tap ' + PLUS + ' <b>Add to Home Screen</b> (scroll down or tap <b>More</b> if you don\'t see it).',
                'Tap <b>Add</b>. The FT Orders icon appears on your home screen.'];
-      note = 'If Add to Home Screen is missing, open frontech-orders.github.io in Safari and add it from there.';
+      note = 'If Add to Home Screen is missing, open orders.frontech.co.in in Safari and add it from there.';
     } else {
       steps = ['Tap ' + SHARE + ' <b>Share</b> at the bottom of Safari. On iOS 26 tap ' + DOTS + ' first, then <b>Share</b>.',
                'Scroll down and tap ' + PLUS + ' <b>Add to Home Screen</b> (tap <b>View More</b> if you don\'t see it).',
