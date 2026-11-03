@@ -497,11 +497,12 @@ nav button.on svg{color:#fff;background:var(--grad);border-radius:100px;padding:
     </div>
     <div id="lmMail" class="hidden">
     <label class="lf"><span>Email</span><input id="lEmail" type="email" inputmode="email" autocapitalize="off" autocomplete="email" placeholder="name@frontech..."></label>
-    <label class="lf"><span>Password</span><input id="lPass" type="password" autocomplete="current-password" placeholder="Your password"></label>
+    <label class="lf" id="lPassW"><span>Password</span><input id="lPass" type="password" autocomplete="current-password" placeholder="Your password"></label>
+    <div id="lmOtp" class="hidden"><label class="lf"><span>6-digit code from your mail</span><input id="lOtp" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="••••••"></label></div>
     </div>
     <div class="lerr" id="lErr"></div>
     <button class="btn primary block" id="lBtn" type="submit">Sign in</button>
-    <div class="lalt"><a href="#" id="lSwitch">Sign in with email &amp; password</a><a href="#" id="lForgot" class="hidden">Forgot / set password?</a></div>
+    <div class="lalt"><a href="#" id="lSwitch">Sign in with email &amp; password</a><a href="#" id="lForgot" class="hidden">Forgot / set password?</a><a href="#" id="lResend" class="hidden">Send a new code</a></div>
   </form>
 </section>
 
@@ -564,6 +565,16 @@ nav button.on svg{color:#fff;background:var(--grad);border-radius:100px;padding:
         if (!lj.ok) return { ok: false, error: lj.error || 'Login failed.' };
         save(lj.session);
         return { ok: true, data: { token: 'sb' } };
+      }
+      if (action === 'loginConfig') {                     // which email login is on (OTP code or password)
+        var cr = await post('login', { action: 'config' }); var cj = await cr.json().catch(function () { return null; });
+        return cj && cj.ok ? { ok: true, data: { emailLogin: cj.emailLogin } } : { ok: false, error: 'not available' };
+      }
+      if (action === 'emailOtp') {                        // email + 6-digit code from the mail -> signed in
+        var orr = await post('login', { action: 'otp', email: (payload || {}).email, otp: (payload || {}).otp });
+        var oj = await orr.json();
+        if (!oj.ok) return { ok: false, error: oj.error || 'Login failed.' };
+        save(oj.session); return { ok: true, data: { token: 'sb' } };
       }
       if (action === 'pwForgot' || action === 'pwReset') {      // forgot / set password (no session needed)
         var pr = await post('login', Object.assign({ action: action === 'pwForgot' ? 'forgot' : 'reset' }, payload || {}));
@@ -695,6 +706,14 @@ $('#loginForm').addEventListener('submit', async e=>{
   const b=$('#lBtn'); b.disabled=true; b.innerHTML='<span class="spin"></span>'; $('#lErr').textContent='';
   try{
     const mail = S.loginMode==='mail';
+    if(mail && otpMode()){
+      const em=$('#lEmail').value.trim(); if(!em) throw new Error('Enter your email.');
+      if(!S.otpSent){ await sendOtp(); return; }
+      const c=$('#lOtp').value.trim(); if(!/^\d{6}$/.test(c)) throw new Error('Enter the 6-digit code from your mail.');
+      const r = await call('emailOtp',{email:em, otp:c});
+      S.token=r.token; store.set('token', r.token); store.set('lastEmail', em.toLowerCase()); S.otpSent=false;
+      await boot(); return;
+    }
     if(mail && (!$('#lEmail').value.trim() || !$('#lPass').value)) throw new Error('Enter your email and password.');
     if(!mail && (!$('#lCode').value.trim() || !$('#lPin').value)) throw new Error('Enter your code and PIN.');
     const r = await call('login', mail ? {email:$('#lEmail').value.trim(), password:$('#lPass').value} : {code:$('#lCode').value, pin:$('#lPin').value});
@@ -702,8 +721,17 @@ $('#loginForm').addEventListener('submit', async e=>{
     if(mail) store.set('lastEmail', $('#lEmail').value.trim().toLowerCase()); else store.set('lastCode', $('#lCode').value.trim().toUpperCase());
     await boot();
   }catch(err){ $('#lErr').textContent=err.message; }
-  finally{ b.disabled=false; b.textContent='Sign in'; }
+  finally{ b.disabled=false; b.textContent=(S.loginMode==='mail'&&otpMode()&&!S.otpSent)?'Send code':'Sign in'; }
 });
+/* Email login mode: 'OTP' (code by mail every time) or 'PASSWORD' — set on the server (EMAIL_LOGIN). */
+function otpMode(){ return (S.emailMode||store.get('emailLogin','OTP'))!=='PASSWORD'; }
+async function sendOtp(){
+  const em=$('#lEmail').value.trim(); if(!em) throw new Error('Enter your email.');
+  const r = await call('pwForgot',{email:em});
+  S.otpSent=true; S.otpEmail=em.toLowerCase(); setLoginMode('mail', true);
+  $('#lHint').textContent = r.message || 'A 6-digit code has been sent to your email.';
+  setTimeout(()=>$('#lOtp').focus(), 60);
+}
 /* Phone pop-up notifications. The app runs inside the home-screen shell (same site), so the shell window
    owns the service worker and the permission; notification taps open the order here. */
 const PUSH_W = (()=>{ try{ return window.top !== window && window.top.location.origin === location.origin ? window.top : window; }catch(e){ return window; } })();
@@ -754,15 +782,28 @@ try{ navigator.serviceWorker && navigator.serviceWorker.addEventListener('messag
   if(m.type==='pushed') pollNotify();
   if(m.type==='openOrder' && m.no) openOrderChat(m.no, m.status);
 }); }catch(e){}
-function setLoginMode(m){
+function setLoginMode(m, keepOtp){
   S.loginMode = m==='mail' ? 'mail' : 'pin'; store.set('loginMode', S.loginMode);
-  const mail = S.loginMode==='mail';
+  const mail = S.loginMode==='mail', otp = otpMode();
+  if(!keepOtp) S.otpSent=false;
   $('#lmPin').classList.toggle('hidden', mail); $('#lmMail').classList.toggle('hidden', !mail);
-  $('#lForgot').classList.toggle('hidden', !mail);
-  $('#lSwitch').textContent = mail ? 'Sign in with code & PIN' : 'Sign in with email & password';
-  $('#lHint').textContent = mail ? 'Sign in with the email your admin saved for you and your password.' : 'Sign in with the code and PIN your branch gave you.';
+  $('#lPassW').classList.toggle('hidden', otp);
+  $('#lmOtp').classList.toggle('hidden', !(otp && S.otpSent));
+  $('#lForgot').classList.toggle('hidden', !mail || otp);
+  $('#lResend').classList.toggle('hidden', !(mail && otp && S.otpSent));
+  $('#lSwitch').textContent = mail ? 'Sign in with code & PIN' : (otp ? 'Sign in with email' : 'Sign in with email & password');
+  $('#lHint').textContent = !mail ? 'Sign in with the code and PIN your branch gave you.'
+    : otp ? 'Enter the email your admin saved for you. We will mail you a 6-digit code to sign in.'
+          : 'Sign in with the email your admin saved for you and your password.';
+  $('#lBtn').textContent = (mail && otp && !S.otpSent) ? 'Send code' : 'Sign in';
   $('#lErr').textContent='';
-  setTimeout(()=>{ const a = mail ? ($('#lEmail').value?$('#lPass'):$('#lEmail')) : ($('#lCode').value?$('#lPin'):$('#lCode')); a.focus(); }, 50);
+  setTimeout(()=>{ const a = mail ? (otp ? (S.otpSent?$('#lOtp'):$('#lEmail')) : ($('#lEmail').value?$('#lPass'):$('#lEmail'))) : ($('#lCode').value?$('#lPin'):$('#lCode')); a.focus(); }, 50);
+}
+$('#lEmail').addEventListener('input', ()=>{ if(S.otpSent && $('#lEmail').value.trim().toLowerCase()!==S.otpEmail){ setLoginMode('mail'); } });
+$('#lResend').onclick=async e=>{ e.preventDefault(); try{ await sendOtp(); toast('New code sent'); }catch(err){ $('#lErr').textContent=err.message; } };
+async function loadLoginConfig(){
+  try{ const c = await call('loginConfig',{},{silent:true}); const m = c && c.emailLogin==='PASSWORD' ? 'PASSWORD' : 'OTP';
+    if(m!==S.emailMode){ S.emailMode=m; store.set('emailLogin', m); if(!$('#login').classList.contains('hidden')) setLoginMode(S.loginMode, true); } }catch(e){}
 }
 $('#lSwitch').onclick=e=>{ e.preventDefault(); setLoginMode(S.loginMode==='mail'?'pin':'mail'); };
 $('#lForgot').onclick=e=>{ e.preventDefault(); passwordSheet($('#lEmail').value.trim(), false); };
@@ -771,6 +812,7 @@ function showLogin(){
   $('#lCode').value = store.get('lastCode','');
   $('#lEmail').value = store.get('lastEmail','');
   setLoginMode(store.get('loginMode','pin'));
+  loadLoginConfig();
 }
 /* Forgot / set password: 1) mail a 6-digit code to the saved email  2) code + new password -> signed in */
 function passwordSheet(email, loggedIn){
@@ -822,6 +864,7 @@ async function boot(){
   prefetch();
   pollNotify();
   pushInit();
+  loadLoginConfig();
 }
 /* warm every screen in the background so switching tabs is instant */
 function prefetch(){
@@ -871,9 +914,9 @@ $('#avatar').addEventListener('click', e=>{
   const ov=$('#overlay');
   if(ov.querySelector('.menu')){ ov.innerHTML=''; return; }
   ov.innerHTML=`<div class="menu"><div class="who"><b>${esc(S.user.name)}</b><div class="muted small">${esc(S.user.code)} · ${esc(ROLE_LABEL[S.user.role]||S.user.role)}</div></div>
-    <button id="mPin">Change PIN</button><button id="mMail">Email &amp; password login</button><button id="mPush">${pushState()==='granted'&&store.get('pushOn',1)!==0?'Notifications: on ✓':'Turn on notifications'}</button><button id="mRef">Reload stock</button><button id="mOut" style="color:var(--bad)">Sign out</button></div>`;
+    <button id="mPin">Change PIN</button>${otpMode()?'':'<button id="mMail">Email &amp; password login</button>'}<button id="mPush">${pushState()==='granted'&&store.get('pushOn',1)!==0?'Notifications: on ✓':'Turn on notifications'}</button><button id="mRef">Reload stock</button><button id="mOut" style="color:var(--bad)">Sign out</button></div>`;
   $('#mPin').onclick=()=>{ov.innerHTML='';changePin();};
-  $('#mMail').onclick=()=>{ov.innerHTML='';passwordSheet(store.get('lastEmail',''), true);};
+  if($('#mMail')) $('#mMail').onclick=()=>{ov.innerHTML='';passwordSheet(store.get('lastEmail',''), true);};
   $('#mPush').onclick=async()=>{ ov.innerHTML='';
     if(pushState()==='granted'&&store.get('pushOn',1)!==0){ await pushOff(); toast('Notifications off on this phone'); return; }
     try{ await pushOn(); toast('Notifications on'); }catch(e){ toast(e.message,true); } };
