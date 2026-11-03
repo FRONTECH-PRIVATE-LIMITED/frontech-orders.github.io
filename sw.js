@@ -1,7 +1,7 @@
 // Keeps the app shell (this page + icons) on the phone so the app opens instantly.
 // Business data never passes through here: the app talks to the central database (Supabase) directly.
-const CACHE = 'ft-shell-v4';
-const SHELL = ['./', './index.html', './app.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.png'];
+const CACHE = 'ft-shell-v5';
+const SHELL = ['./', './index.html', './app.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.png', './badge-96.png', './frontech-logo.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -24,7 +24,7 @@ self.addEventListener('push', e => {
   let m = {}; try { m = e.data ? e.data.json() : {}; } catch (x) { m = { title: 'FT Orders', body: e.data ? e.data.text() : '' }; }
   e.waitUntil((async () => {
     await self.registration.showNotification(m.title || 'FT Orders', {
-      body: m.body || '', tag: m.tag || undefined, renotify: !!m.tag, icon: './icon-192.png', badge: './favicon.png',
+      body: m.body || '', tag: m.tag || undefined, renotify: !!m.tag, icon: './icon-192.png', badge: './badge-96.png',
       data: { no: m.no || '', status: /^order-/.test(m.tag || '') },
     });
     const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

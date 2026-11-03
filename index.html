@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Frontech Sales Order</title>
 <meta name="description" content="Frontech field sales order app">
-<meta name="theme-color" content="#1e1b4b">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="favicon.png">
@@ -13,35 +15,39 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="FT Orders">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;height:100%;background:#1e1b4b;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
-  #app{position:fixed;inset:0;width:100%;height:100%;border:0;background:#1e1b4b}
-  #splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#c7d2fe;background:radial-gradient(circle at 30% 20%,#312e81,#1e1b4b 60%);transition:opacity .35s;z-index:2}
-  #splash img{width:76px;height:76px;border-radius:20px;box-shadow:0 12px 40px #6d28d966}
-  #splash b{color:#fff;font-size:20px;letter-spacing:-.01em}
-  .dots{display:flex;gap:6px}.dots i{width:7px;height:7px;border-radius:50%;background:#a5b4fc;animation:b 1s infinite ease-in-out}
+  :root{--bg:#fbf8f1;--ink:#000;--muted:#6b6b6b;--card:#fff;--line:#ece8df;--dot:#f36734;--btn:#000;--btnInk:#fff;--chip:#ffe5db;--chipInk:#b5380b}
+  @media (prefers-color-scheme:dark){:root{--bg:#0d0d0d;--ink:#fff;--muted:#a3a3a3;--card:#1a1a1a;--line:#2a2a2a;--dot:#ff8a5c;--btn:#fff;--btnInk:#000;--chip:#3a1f14;--chipInk:#ff8a5c}}
+  html,body{margin:0;height:100%;background:var(--bg);font-family:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+  #app{position:fixed;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+  #splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:var(--muted);background:var(--bg);transition:opacity .35s;z-index:2}
+  #splash img{width:84px;height:84px}
+  #splash b{color:var(--ink);font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .dots{display:flex;gap:6px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--dot);animation:b 1s infinite ease-in-out}
   .dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
   @keyframes b{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
   #msg{font-size:14px;text-align:center;max-width:280px;line-height:1.45}
-  #retry{display:none;border:0;border-radius:12px;background:#fff;color:#312e81;font-weight:700;padding:11px 20px;font-size:14px}
-  #inst{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:3;display:none;align-items:center;gap:12px;background:#fff;color:#0f172a;border-radius:16px;padding:12px 12px 12px 14px;box-shadow:0 12px 40px #0006}
-  #inst img{width:40px;height:40px;border-radius:11px}
-  #inst .t{flex:1;font-size:13px;line-height:1.35}#inst .t b{display:block;font-size:14px}
-  #inst button{border:0;border-radius:11px;font-weight:700;font-size:13.5px;padding:10px 14px;cursor:pointer}
-  #instGo{background:linear-gradient(135deg,#4f46e5,#9333ea);color:#fff}
-  #instX{background:transparent;color:#64748b;font-size:20px!important;padding:6px 8px!important}
-  #guide{position:fixed;inset:0;z-index:4;display:none;align-items:flex-end;justify-content:center;background:#0f172acc}
-  #guide .sh{background:#fff;color:#0f172a;width:100%;max-width:460px;border-radius:22px 22px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px #0006}
-  #guide h3{margin:0 0 4px;font-size:18px}#guide .sub{margin:0 0 14px;font-size:13px;color:#64748b}
+  #retry{display:none;border:0;border-radius:999px;background:var(--btn);color:var(--btnInk);font:700 14px Manrope,system-ui,sans-serif;padding:12px 24px}
+  #inst{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:3;display:none;align-items:center;gap:12px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:12px 12px 12px 14px;box-shadow:0 12px 40px #0003}
+  #inst img{width:40px;height:40px}
+  #inst .t{flex:1;font-size:13px;line-height:1.35;color:var(--muted)}#inst .t b{display:block;font-size:14px;color:var(--ink)}
+  #inst button{border:0;border-radius:999px;font:700 13.5px Manrope,system-ui,sans-serif;padding:10px 16px;cursor:pointer}
+  #instGo{background:var(--btn);color:var(--btnInk)}
+  #instX{background:transparent;color:var(--muted);font-size:20px!important;padding:6px 8px!important}
+  #guide{position:fixed;inset:0;z-index:4;display:none;align-items:flex-end;justify-content:center;background:#000a}
+  #guide .sh{background:var(--card);color:var(--ink);width:100%;max-width:460px;border-radius:22px 22px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px #0006}
+  #guide h3{margin:0 0 4px;font-size:18px;font-weight:800}#guide .sub{margin:0 0 14px;font-size:13px;color:var(--muted)}
   #guide ol{list-style:none;margin:0;padding:0;counter-reset:s}
-  #guide li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid #eef2f7;font-size:14.5px;line-height:1.4}
-  #guide li::before{content:counter(s);flex:0 0 26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#9333ea);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
-  #guide .ico{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 5px;margin:0 2px;border-radius:7px;background:#eef2ff;color:#2563eb;font-weight:800}
+  #guide li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line);font-size:14.5px;line-height:1.4}
+  #guide li::before{content:counter(s);flex:0 0 26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#ff4400,#fb5317 50.48%,#ff9e7a 98.56%);color:#000;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+  #guide .ico{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 5px;margin:0 2px;border-radius:7px;background:var(--chip);color:var(--chipInk);font-weight:800}
   #guide .ico svg{width:17px;height:17px}
-  #guide .note{margin:10px 0 0;font-size:12.5px;color:#64748b;background:#f8fafc;border-radius:12px;padding:10px 12px}
-  #guideX{margin-top:14px;width:100%;border:0;border-radius:13px;padding:13px;font-weight:700;font-size:15px;background:#0f172a;color:#fff}
-  #instGo.ios{background:#0f172a}
+  #guide .note{margin:10px 0 0;font-size:12.5px;color:var(--muted);background:var(--bg);border-radius:12px;padding:10px 12px}
+  #guideX{margin-top:14px;width:100%;border:0;border-radius:999px;padding:13px;font:700 15px Manrope,system-ui,sans-serif;background:var(--btn);color:var(--btnInk)}
+  #instGo.ios{background:var(--btn)}
 </style>
 </head>
 <body>

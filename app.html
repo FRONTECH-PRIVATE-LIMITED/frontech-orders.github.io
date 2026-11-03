@@ -4,10 +4,11 @@
 <base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1220">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
 <title>FT Orders</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#f3f5fa; --card:#ffffff; --ink:#0b1220; --ink2:#334155; --mute:#64748b; --line:#e5e9f2; --soft:#eef2f8;
@@ -319,6 +320,165 @@ select.field{appearance:auto}
   main{padding-left:20px;padding-right:20px}
 }
 @media (max-width:380px){ .kpis{grid-template-columns:1fr 1fr} }
+/* ===================================================================
+   Frontech design system skin (light default, dark follows the phone)
+   Tokens from the Frontech design system (tokens.json). Layout and logic unchanged.
+   =================================================================== */
+:root{
+  --surface:#ffffff; --surface-cream:#fbf8f1; --surface-hover:#f5f5f5; --surface-inverse:#000000; --ink-inverse:#ffffff;
+  --ink-soft:#111111; --ink-muted:#6b6b6b; --ink-subtle:#808080; --border:#f1f1f1; --border-strong:#00000021;
+  --brand-orange:#f36734; --brand-orange-ink:#b5380b; --brand-orange-tint:#ffe5db; --on-orange:#ffffff;
+  --grad:linear-gradient(90deg,#ff4400 0%,#fb5317 50.48%,#ff9e7a 98.56%);
+  --button-hover:#333333; --focus:#000000; --overlay:#00000066;
+  --s-ok:#067a6f; --s-ok-bg:#e3f4f1; --s-warn:#a15c07; --s-warn-bg:#fdf1dc; --s-bad:#b42318; --s-bad-bg:#fdecea; --s-info:#1d5bbf; --s-info-bg:#e7effb;
+  --shadow-pop:0 4px 20px rgba(0,0,0,.15);
+  /* the app's own variables, mapped onto the brand */
+  --bg:var(--surface-cream); --card:var(--surface); --ink:#000000; --ink2:var(--ink-soft); --mute:var(--ink-muted); --muted:var(--ink-muted);
+  --line:#ece8df; --soft:var(--surface-cream);
+  --brand:var(--brand-orange); --brand2:#ff4400; --brandSoft:var(--brand-orange-tint);
+  --ok:var(--s-ok); --okSoft:var(--s-ok-bg); --ho:var(--s-warn); --hoSoft:var(--s-warn-bg); --bad:var(--s-bad); --badSoft:var(--s-bad-bg);
+  --hdr1:var(--surface); --hdr2:var(--surface);
+  --shadow:none; --shadow2:var(--shadow-pop); --r:12px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --surface:#0d0d0d; --surface-cream:#1a1a1a; --surface-hover:#242424; --surface-inverse:#ffffff; --ink-inverse:#000000;
+    --ink-soft:#ededed; --ink-muted:#b3b3b3; --ink-subtle:#a3a3a3; --border:#2e2e2e; --border-strong:#ffffff33;
+    --brand-orange-ink:#ff8a5c; --brand-orange-tint:#3a1d12; --button-hover:#e6e6e6; --focus:#ffffff; --overlay:#000000a3;
+    --s-ok:#3fc1b0; --s-ok-bg:#0f2f2b; --s-warn:#f5b041; --s-warn-bg:#3a2a0e; --s-bad:#ff7a6e; --s-bad-bg:#3a1714; --s-info:#7aa7ff; --s-info-bg:#14213d;
+    --bg:var(--surface); --card:var(--surface-cream); --ink:#ffffff; --line:#2e2e2e; --soft:#242424;
+    --shadow:none; color-scheme:dark;
+  }
+}
+html,body{font-family:Manrope,system-ui,-apple-system,"Segoe UI",sans-serif}
+body{letter-spacing:-.01em}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+h1,h2,h3,.sheet h2{font-weight:600}
+
+/* ---------- login ---------- */
+#login{background:var(--surface-cream)}
+.loginCard{color:var(--ink)}
+.loginCard h1{font-weight:600;letter-spacing:-.02em}
+.loginCard p{color:var(--ink-muted)}
+.logo{background:none;box-shadow:none;width:auto;height:auto;border-radius:0}
+.lf span{color:var(--ink-muted);font-weight:600}
+.lf input{background:var(--surface);border:1px solid var(--border-strong);color:var(--ink);border-radius:8px}
+.lf input::placeholder,.field::placeholder{color:var(--ink-subtle)}
+.lf input:focus{border-color:var(--ink);background:var(--surface);box-shadow:none}
+.lerr{color:var(--s-bad);font-weight:600}
+.lalt a{color:var(--brand-orange-ink)}
+.ftlogo{display:block;height:44px;width:auto}
+.ftlogo-pad{display:inline-block;background:#ffffff;border-radius:12px;padding:14px 16px}
+@media (prefers-color-scheme:light){.ftlogo-pad{padding:0;background:none}}
+
+/* ---------- buttons: Frontech pills ---------- */
+.btn{height:44px;border-radius:100px;font-weight:600;padding:0 24px}
+.btn.sm{height:38px;border-radius:100px;padding:0 16px}
+.btn.primary{background:var(--surface-inverse);color:var(--ink-inverse);box-shadow:none}
+.btn.primary:hover{background:var(--button-hover)}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.btn.ghost:hover{background:var(--surface-hover)}
+.btn.ok{background:var(--s-ok);color:#fff}
+@media (prefers-color-scheme:dark){.btn.ok{color:#000}}
+.btn.danger{background:var(--s-bad-bg);color:var(--s-bad)}
+.spin{border-color:color-mix(in srgb,currentColor 35%,transparent);border-top-color:currentColor}
+
+/* ---------- header: white, logo left ---------- */
+header{background:var(--surface);color:var(--ink);box-shadow:none;border-bottom:1px solid var(--line)}
+.hlogo{background:none;width:auto;height:30px;border-radius:0;padding:0}
+.hlogo img{height:30px;width:auto;display:block}
+.htitle b{font-weight:600}
+.htitle small{color:var(--ink-muted)}
+.dot{background:var(--s-ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--s-ok) 22%,transparent)}
+.dot.stale{background:var(--s-warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--s-warn) 22%,transparent)}
+.bpill{border:1px solid var(--border-strong);background:var(--surface);color:var(--ink)}
+.avatar{background:var(--surface-inverse);color:var(--ink-inverse)}
+.hbtn{background:var(--surface-cream);color:var(--ink)}
+.hbtn svg,nav button svg{stroke-width:1.5}
+.hbtn .n{background:var(--brand-orange);color:#fff;box-shadow:0 0 0 2px var(--surface)}
+.hbtn.dot::after{background:var(--brand-orange);box-shadow:0 0 0 2px var(--surface)}
+.topbar{background:var(--grad)}
+
+/* ---------- surfaces ---------- */
+.card,.kpi{border-radius:12px;box-shadow:none;border:1px solid var(--line)}
+.field{border-radius:8px;border:1px solid var(--border-strong);background:var(--surface)}
+.card .field,.sheet .field{background:var(--surface-cream)}
+.field:focus{border-color:var(--ink);background:var(--surface);box-shadow:none}
+.sheet{border-radius:14px 14px 0 0;box-shadow:var(--shadow-pop)}
+.menu{border-radius:14px;box-shadow:var(--shadow-pop)}
+.menu button:hover{background:var(--surface-hover)}
+.scrim{background:var(--overlay)}
+mark{background:var(--brand-orange-tint);color:inherit}
+@media (prefers-color-scheme:dark){mark{background:var(--brand-orange-tint)}}
+
+/* ---------- tabs: segmented pills, active = brand gradient ---------- */
+.seg{background:var(--surface);border:1px solid var(--line);border-radius:100px}
+.seg button{border-radius:100px;font-weight:600;color:var(--ink-muted)}
+.seg button.on{background:var(--grad);color:#000;box-shadow:none}
+nav{border-top:1px solid var(--line);background:color-mix(in srgb,var(--surface) 92%,transparent)}
+nav button{color:var(--ink-muted)}
+nav button.on{color:var(--ink)}
+nav button.on svg{color:#fff;background:var(--grad);border-radius:100px;padding:3px 12px;width:48px;height:29px;box-sizing:border-box;transform:none}
+.badge{background:var(--brand-orange);color:#fff}
+
+/* ---------- status chips: word + colour, never orange for problems ---------- */
+.chip{font-weight:600;border-radius:100px}
+.chip.st-PENDING{background:var(--s-info-bg);color:var(--s-info)}
+.chip.st-EXECUTED{background:var(--s-ok-bg);color:var(--s-ok)}
+.chip.st-CANCELLED{background:var(--s-bad-bg);color:var(--s-bad)}
+.chip.st-QUERY{background:var(--s-warn-bg);color:var(--s-warn)}
+@media (prefers-color-scheme:dark){.chip.st-QUERY{background:var(--s-warn-bg);color:var(--s-warn)}}
+.chip.br{background:var(--s-ok-bg);color:var(--s-ok)}
+.chip.ho{background:var(--s-warn-bg);color:var(--s-warn)}
+.chip.no{background:var(--s-bad-bg);color:var(--s-bad)}
+.chip.new,.chip.msg{background:var(--brand-orange-tint);color:var(--brand-orange-ink)}
+.chip.age{background:var(--s-info-bg);color:var(--s-info)}
+.chip.age.old{background:var(--s-warn-bg);color:var(--s-warn)}
+.cbadge{background:var(--brand-orange);color:#fff}
+
+/* ---------- order / partner / chat ---------- */
+.pchip{background:var(--brand-orange-tint);border:1px solid transparent}
+.pav{background:var(--surface-inverse);color:var(--ink-inverse);border-radius:50%}
+.ord.sel{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink)}
+.cb.on{background:var(--surface-inverse);border-color:var(--surface-inverse);color:var(--ink-inverse)}
+.pbar i{background:var(--grad)}
+.bub.me{background:var(--surface-inverse);color:var(--ink-inverse)}
+.bub.them{background:var(--surface-cream);border:1px solid var(--line)}
+.prop{background:var(--s-warn-bg);border-color:color-mix(in srgb,var(--s-warn) 35%,transparent)}
+@media (prefers-color-scheme:dark){.prop{background:var(--s-warn-bg);border-color:color-mix(in srgb,var(--s-warn) 35%,transparent)}}
+.prop b.t{color:var(--s-warn)}
+.editbar{background:var(--s-warn-bg);border-color:color-mix(in srgb,var(--s-warn) 35%,transparent)}
+.editbar b,.editbar span{color:var(--s-warn)}
+.mini input.changed{border-color:var(--s-warn);background:var(--s-warn-bg);color:var(--s-warn)}
+
+/* ---------- dark bands: sales hero, order summary bar, alerts, toast ---------- */
+.hero{background:#000;color:#fff;border-radius:12px;box-shadow:none}
+.hero:after{display:none}
+.hero .lab{color:#b3b3b3}
+.bar{background:#ffffff26}
+.bar i{background:var(--brand-orange)}
+.sumin{background:#000;color:#fff;border-radius:12px}
+.sumin .lab{color:#b3b3b3}
+@media (prefers-color-scheme:dark){.hero,.sumin{background:#1a1a1a;border:1px solid #2e2e2e}}
+.abar{background:#000;color:#fff;box-shadow:var(--shadow-pop);border-radius:12px}
+.abar .btn{background:#fff;color:#000}
+@media (prefers-color-scheme:dark){.abar{background:#1a1a1a;border:1px solid #2e2e2e}}
+#toast{background:#000;color:#fff;border-radius:100px}
+#toast.err{background:var(--s-bad);color:#fff}
+@media (prefers-color-scheme:dark){#toast{background:#fff;color:#000}}
+
+/* ---------- notification list icons ---------- */
+.ni .ic{background:var(--brand-orange-tint);color:var(--brand-orange-ink);border-radius:50%}
+.ni .ic.q{background:var(--s-warn-bg);color:var(--s-warn)}
+.ic.sk{background:var(--s-info-bg);color:var(--s-info)}
+.ni.quiet .ic{background:var(--surface-hover);color:var(--ink-muted)}
+.tog.on{background:var(--s-ok)}
+#pushCard{border-radius:14px;box-shadow:var(--shadow-pop);border:1px solid var(--line)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 #f3673466}100%{box-shadow:0 0 0 14px #f3673400}}
+
+@media (prefers-color-scheme:dark){.hlogo{display:none}}
+@media (prefers-color-scheme:light){.htitle b{display:none}.htitle small{font-size:11.5px;white-space:normal;line-height:1.25;overflow:visible}.htitle small .dot{flex:none}.bpill{max-width:120px}}
 </style>
 </head>
 <body>
@@ -328,7 +488,7 @@ select.field{appearance:auto}
 <!-- LOGIN -->
 <section id="login" class="hidden">
   <form class="loginCard" id="loginForm" autocomplete="on">
-    <div class="logo">F</div>
+    <div class="logo"><span class="ftlogo-pad"><img class="ftlogo" src="/frontech-logo.svg" alt="Frontech"></span></div>
     <h1>Sales Order</h1>
     <p id="lHint">Sign in with the code and PIN your branch gave you.</p>
     <div id="lmPin">
@@ -349,7 +509,7 @@ select.field{appearance:auto}
 <div id="app" class="hidden">
   <header>
     <div class="hrow">
-      <div class="hlogo">F</div>
+      <div class="hlogo"><img src="/frontech-logo.svg" alt="Frontech"></div>
       <div class="htitle"><b id="hTitle">Sales Order</b><small><span class="dot" id="hDot"></span><span id="hStock">Stock —</span></small></div>
       <button class="bpill" id="bPill" type="button"><span id="bName">—</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></button>
       <button class="hbtn" id="bell" type="button" aria-label="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="n hidden" id="bellN"></span></button>
