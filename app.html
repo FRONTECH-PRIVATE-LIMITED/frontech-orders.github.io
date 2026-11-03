@@ -52,6 +52,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn.block{width:100%}
 .btn[disabled]{opacity:.55;pointer-events:none}
 .lerr{min-height:20px;color:#fca5a5;font-size:13.5px;margin:4px 0 10px}
+#pushCard{position:fixed;left:12px;right:12px;bottom:calc(var(--nav) + var(--safe-b) + 14px);z-index:35;max-width:520px;margin:0 auto;background:var(--card);color:var(--ink);border-radius:18px;padding:14px 16px;box-shadow:var(--shadow2);display:flex;flex-direction:column;gap:6px;animation:up .32s cubic-bezier(.2,.8,.2,1)}
+#pushCard b{font-size:15px}#pushCard span{font-size:13.5px;color:var(--muted)}#pushCard div{display:flex;gap:8px;margin-top:6px}
 .lalt{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:18px}
 .lalt a{color:#a5b4fc;font-size:14px;font-weight:600;text-decoration:none}
 .lalt a:hover{text-decoration:underline}
@@ -418,6 +420,17 @@ select.field{appearance:auto}
         save(null);
         return { ok: true, data: true };
       }
+      if (action === 'pushKey') {                  // public key for phone notifications
+        var kr = await fetch(SB + '/functions/v1/push/key', { headers: { apikey: PK } });
+        var kj = await kr.json();
+        return kj && kj.key ? { ok: true, data: kj } : { ok: false, error: 'Notifications are not available right now.' };
+      }
+      if (action.indexOf('db_') === 0) {            // the few database functions the app may call itself (own phone on/off)
+        var dr = await fetch(SB + '/rest/v1/rpc/' + action.slice(3), { method: 'POST',
+          headers: { apikey: PK, authorization: 'Bearer ' + s.access_token, 'content-type': 'application/json' }, body: JSON.stringify(payload || {}) });
+        var dj = await dr.json().catch(function () { return null; });
+        return dr.ok ? { ok: true, data: dj } : { ok: false, error: (dj && dj.message) || 'Not possible right now.' };
+      }
       var r = await post('api', { action: action, payload: payload || {} }, s.access_token);
       if (r.status === 401) {                // token expired early (phone clock etc.): refresh once and retry
         s = await session(true);
@@ -531,6 +544,56 @@ $('#loginForm').addEventListener('submit', async e=>{
   }catch(err){ $('#lErr').textContent=err.message; }
   finally{ b.disabled=false; b.textContent='Sign in'; }
 });
+/* Phone pop-up notifications. The app runs inside the home-screen shell (same site), so the shell window
+   owns the service worker and the permission; notification taps open the order here. */
+const PUSH_W = (()=>{ try{ return window.top !== window && window.top.location.origin === location.origin ? window.top : window; }catch(e){ return window; } })();
+function pushSupported(){ const W=PUSH_W; return !!(W.navigator.serviceWorker && W.PushManager && W.Notification); }
+function pushIOSNeedsHome(){ const ua=navigator.userAgent, ios=/iphone|ipad|ipod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const st=PUSH_W.matchMedia('(display-mode: standalone)').matches||PUSH_W.navigator.standalone===true; return ios && !st; }
+function pushState(){ return pushSupported() ? PUSH_W.Notification.permission : 'unsupported'; }
+const b64ToU8=s=>{ s=s.replace(/-/g,'+').replace(/_/g,'/'); s+='==='.slice((s.length+3)%4); return Uint8Array.from(atob(s),c=>c.charCodeAt(0)); };
+async function pushReg(){ const sw=PUSH_W.navigator.serviceWorker; const r=(await sw.getRegistration('/'))||(await sw.register('/sw.js'));
+  await Promise.race([sw.ready, new Promise((_,no)=>setTimeout(()=>no(new Error('Could not start notifications. Close the app, open it again and try once more.')),15000))]); return r; }
+async function pushOn(){
+  if(!pushSupported()) throw new Error(pushIOSNeedsHome() ? 'On iPhone: first add FT Orders to your Home Screen, open it from there, then turn on notifications.' : 'This browser cannot show notifications.');
+  const perm = PUSH_W.Notification.permission==='granted' ? 'granted' : await PUSH_W.Notification.requestPermission();
+  if(perm!=='granted') throw new Error('Notifications are blocked for this app. Allow them in the phone / browser settings for orders.frontech.co.in.');
+  const reg = await pushReg();
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub){ const k = await call('pushKey',{},{silent:true}); sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(k.key)}); }
+  const j = sub.toJSON();
+  await call('db_push_subscribe',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_ua:navigator.userAgent.slice(0,300)},{silent:true});
+  store.set('pushOn',1); return true;
+}
+async function pushOff(signingOut){
+  try{ const reg=await PUSH_W.navigator.serviceWorker.getRegistration('/'); const sub=reg&&await reg.pushManager.getSubscription();
+    if(sub){ await call('db_push_unsubscribe',{p_endpoint:sub.endpoint},{silent:true}).catch(()=>{}); await sub.unsubscribe(); } }catch(e){}
+  if(!signingOut) store.set('pushOn',0);
+}
+async function pushInit(){
+  try{
+    const st=pushState();
+    if(st==='granted'){ if(store.get('pushOn',1)!==0) await pushOn(); }       // keep this phone registered for whoever is signed in
+    else if(!store.get('pushAsk_'+S.user.code,0) && (st==='default' || pushIOSNeedsHome())) showPushCard(st!=='default');
+    const q = new URLSearchParams(PUSH_W.location.search).get('order');        // app opened by tapping a notification
+    if(q){ try{ PUSH_W.history.replaceState(null,'',PUSH_W.location.pathname); }catch(e){} openOrderChat(q); }
+  }catch(e){}
+}
+function showPushCard(ios){
+  if($('#pushCard')) return;
+  const d=document.createElement('div'); d.id='pushCard';
+  d.innerHTML = ios ? '<b>Get chat &amp; order alerts on your iPhone</b><span>Add FT Orders to your Home Screen (Share → Add to Home Screen), open it from there, then tap “Turn on notifications” in the menu.</span><div><button class="btn ghost sm" id="pcX">OK</button></div>'
+    : '<b>Turn on phone notifications?</b><span>Get a pop-up for new chats and when your orders are executed — even when the app is closed.</span><div><button class="btn primary sm" id="pcOn">Turn on</button><button class="btn ghost sm" id="pcX">Not now</button></div>';
+  document.body.appendChild(d);
+  const close=()=>{ store.set('pushAsk_'+S.user.code,1); d.remove(); };
+  $('#pcX').onclick=close;
+  if($('#pcOn')) $('#pcOn').onclick=async()=>{ try{ await pushOn(); toast('Notifications on'); }catch(e){ toast(e.message,true); } close(); };
+}
+try{ navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', e=>{
+  const m=e.data||{}; if(!S.user) return;
+  if(m.type==='pushed') pollNotify();
+  if(m.type==='openOrder' && m.no) openOrderChat(m.no, m.status);
+}); }catch(e){}
 function setLoginMode(m){
   S.loginMode = m==='mail' ? 'mail' : 'pin'; store.set('loginMode', S.loginMode);
   const mail = S.loginMode==='mail';
@@ -598,6 +661,7 @@ async function boot(){
   if(S.branch) loadCatalog(S.branch).catch(()=>{});
   prefetch();
   pollNotify();
+  pushInit();
 }
 /* warm every screen in the background so switching tabs is instant */
 function prefetch(){
@@ -647,11 +711,14 @@ $('#avatar').addEventListener('click', e=>{
   const ov=$('#overlay');
   if(ov.querySelector('.menu')){ ov.innerHTML=''; return; }
   ov.innerHTML=`<div class="menu"><div class="who"><b>${esc(S.user.name)}</b><div class="muted small">${esc(S.user.code)} · ${esc(ROLE_LABEL[S.user.role]||S.user.role)}</div></div>
-    <button id="mPin">Change PIN</button><button id="mMail">Email &amp; password login</button><button id="mRef">Reload stock</button><button id="mOut" style="color:var(--bad)">Sign out</button></div>`;
+    <button id="mPin">Change PIN</button><button id="mMail">Email &amp; password login</button><button id="mPush">${pushState()==='granted'&&store.get('pushOn',1)!==0?'Notifications: on ✓':'Turn on notifications'}</button><button id="mRef">Reload stock</button><button id="mOut" style="color:var(--bad)">Sign out</button></div>`;
   $('#mPin').onclick=()=>{ov.innerHTML='';changePin();};
   $('#mMail').onclick=()=>{ov.innerHTML='';passwordSheet(store.get('lastEmail',''), true);};
+  $('#mPush').onclick=async()=>{ ov.innerHTML='';
+    if(pushState()==='granted'&&store.get('pushOn',1)!==0){ await pushOff(); toast('Notifications off on this phone'); return; }
+    try{ await pushOn(); toast('Notifications on'); }catch(e){ toast(e.message,true); } };
   $('#mRef').onclick=()=>{ov.innerHTML=''; S.catalog={}; loadCatalog(S.branch,true).then(()=>toast('Stock reloaded'));};
-  $('#mOut').onclick=async()=>{ov.innerHTML=''; try{await call('logout');}catch(e){} logoutLocal();};
+  $('#mOut').onclick=async()=>{ov.innerHTML=''; try{await pushOff(true);}catch(e){} try{await call('logout');}catch(e){} logoutLocal();};
 });
 document.addEventListener('click', e=>{ const m=$('#overlay .menu'); if(m && !m.contains(e.target)) $('#overlay').innerHTML=''; });
 
