@@ -52,6 +52,12 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn.block{width:100%}
 .btn[disabled]{opacity:.55;pointer-events:none}
 .lerr{min-height:20px;color:#fca5a5;font-size:13.5px;margin:4px 0 10px}
+.lalt{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:18px}
+.lalt a{color:#a5b4fc;font-size:14px;font-weight:600;text-decoration:none}
+.lalt a:hover{text-decoration:underline}
+#login:not(.hidden) ~ #overlay .scrim{z-index:60}
+#login:not(.hidden) ~ #overlay .sheet{z-index:61}
+body:has(#login:not(.hidden)) #toast{z-index:70}
 
 /* ---------- SHELL ---------- */
 header{position:sticky;top:0;z-index:20;color:#fff;background:linear-gradient(135deg,var(--hdr1),var(--hdr2));padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 14px;box-shadow:0 6px 24px #0b122033}
@@ -322,11 +328,18 @@ select.field{appearance:auto}
   <form class="loginCard" id="loginForm" autocomplete="on">
     <div class="logo">F</div>
     <h1>Sales Order</h1>
-    <p>Sign in with the code and PIN your branch gave you.</p>
-    <label class="lf"><span>Code</span><input id="lCode" autocapitalize="characters" autocomplete="username" placeholder="e.g. KOL01" required></label>
-    <label class="lf"><span>PIN</span><input id="lPin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password" placeholder="••••" required></label>
+    <p id="lHint">Sign in with the code and PIN your branch gave you.</p>
+    <div id="lmPin">
+    <label class="lf"><span>Code</span><input id="lCode" autocapitalize="characters" autocomplete="username" placeholder="e.g. KOL01"></label>
+    <label class="lf"><span>PIN</span><input id="lPin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password" placeholder="••••"></label>
+    </div>
+    <div id="lmMail" class="hidden">
+    <label class="lf"><span>Email</span><input id="lEmail" type="email" inputmode="email" autocapitalize="off" autocomplete="email" placeholder="name@frontech..."></label>
+    <label class="lf"><span>Password</span><input id="lPass" type="password" autocomplete="current-password" placeholder="Your password"></label>
+    </div>
     <div class="lerr" id="lErr"></div>
     <button class="btn primary block" id="lBtn" type="submit">Sign in</button>
+    <div class="lalt"><a href="#" id="lSwitch">Sign in with email &amp; password</a><a href="#" id="lForgot" class="hidden">Forgot / set password?</a></div>
   </form>
 </section>
 
@@ -389,6 +402,13 @@ select.field{appearance:auto}
         if (!lj.ok) return { ok: false, error: lj.error || 'Login failed.' };
         save(lj.session);
         return { ok: true, data: { token: 'sb' } };
+      }
+      if (action === 'pwForgot' || action === 'pwReset') {      // forgot / set password (no session needed)
+        var pr = await post('login', Object.assign({ action: action === 'pwForgot' ? 'forgot' : 'reset' }, payload || {}));
+        var pj = await pr.json();
+        if (!pj.ok) return { ok: false, error: pj.error || 'Not possible right now.' };
+        if (action === 'pwReset') { save(pj.session); return { ok: true, data: { token: 'sb' } }; }
+        return { ok: true, data: { message: pj.message } };
       }
       var s = await session(false);
       if (s === 'net') return { ok: false, error: NET };
@@ -501,16 +521,63 @@ $('#loginForm').addEventListener('submit', async e=>{
   e.preventDefault();
   const b=$('#lBtn'); b.disabled=true; b.innerHTML='<span class="spin"></span>'; $('#lErr').textContent='';
   try{
-    const r = await call('login',{code:$('#lCode').value, pin:$('#lPin').value});
-    S.token=r.token; store.set('token', r.token); store.set('lastCode', $('#lCode').value.trim().toUpperCase());
+    const mail = S.loginMode==='mail';
+    if(mail && (!$('#lEmail').value.trim() || !$('#lPass').value)) throw new Error('Enter your email and password.');
+    if(!mail && (!$('#lCode').value.trim() || !$('#lPin').value)) throw new Error('Enter your code and PIN.');
+    const r = await call('login', mail ? {email:$('#lEmail').value.trim(), password:$('#lPass').value} : {code:$('#lCode').value, pin:$('#lPin').value});
+    S.token=r.token; store.set('token', r.token);
+    if(mail) store.set('lastEmail', $('#lEmail').value.trim().toLowerCase()); else store.set('lastCode', $('#lCode').value.trim().toUpperCase());
     await boot();
   }catch(err){ $('#lErr').textContent=err.message; }
   finally{ b.disabled=false; b.textContent='Sign in'; }
 });
+function setLoginMode(m){
+  S.loginMode = m==='mail' ? 'mail' : 'pin'; store.set('loginMode', S.loginMode);
+  const mail = S.loginMode==='mail';
+  $('#lmPin').classList.toggle('hidden', mail); $('#lmMail').classList.toggle('hidden', !mail);
+  $('#lForgot').classList.toggle('hidden', !mail);
+  $('#lSwitch').textContent = mail ? 'Sign in with code & PIN' : 'Sign in with email & password';
+  $('#lHint').textContent = mail ? 'Sign in with the email your admin saved for you and your password.' : 'Sign in with the code and PIN your branch gave you.';
+  $('#lErr').textContent='';
+  setTimeout(()=>{ const a = mail ? ($('#lEmail').value?$('#lPass'):$('#lEmail')) : ($('#lCode').value?$('#lPin'):$('#lCode')); a.focus(); }, 50);
+}
+$('#lSwitch').onclick=e=>{ e.preventDefault(); setLoginMode(S.loginMode==='mail'?'pin':'mail'); };
+$('#lForgot').onclick=e=>{ e.preventDefault(); passwordSheet($('#lEmail').value.trim(), false); };
 function showLogin(){
   $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
   $('#lCode').value = store.get('lastCode','');
-  setTimeout(()=>($('#lCode').value?$('#lPin'):$('#lCode')).focus(), 50);
+  $('#lEmail').value = store.get('lastEmail','');
+  setLoginMode(store.get('loginMode','pin'));
+}
+/* Forgot / set password: 1) mail a 6-digit code to the saved email  2) code + new password -> signed in */
+function passwordSheet(email, loggedIn){
+  openSheet(`<h2>${loggedIn?'Email &amp; password login':'Forgot / set password'}</h2>
+    <p class="muted small">${loggedIn?'Set a password so you can also sign in with your email. Your code and PIN keep working.':'We will mail a 6-digit code to the email your admin saved for you.'}</p>
+    <div id="pw1"><div class="lbl" style="margin-top:14px">Your email</div><input class="field" id="pwE" type="email" inputmode="email" autocapitalize="off" value="${esc(email||'')}">
+      <button class="btn primary block" id="pwSend" style="margin-top:16px">Send code</button></div>
+    <div id="pw2" class="hidden"><p class="small" id="pwMsg" style="margin:12px 0 0"></p>
+      <div class="lbl" style="margin-top:12px">6-digit code from the mail</div><input class="field" id="pwC" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+      <div class="lbl" style="margin-top:12px">New password</div><input class="field" id="pwP" type="password" autocomplete="new-password" placeholder="At least 8 characters, letters and numbers">
+      <div class="lbl" style="margin-top:12px">New password again</div><input class="field" id="pwP2" type="password" autocomplete="new-password">
+      <button class="btn primary block" id="pwSave" style="margin-top:16px">Save password${loggedIn?'':' &amp; sign in'}</button>
+      <button class="btn ghost block" id="pwAgain" style="margin-top:8px">Send a new code</button></div>`, ()=>{
+    const send = async()=>{
+      const e=$('#pwE').value.trim(); if(!e) return toast('Enter your email', true);
+      try{ const r = await call('pwForgot',{email:e}); $('#pwMsg').textContent=r.message; $('#pw1').classList.add('hidden'); $('#pw2').classList.remove('hidden'); $('#pwC').focus(); }
+      catch(err){ toast(err.message,true); }
+    };
+    $('#pwSend').onclick=send; $('#pwAgain').onclick=send;
+    $('#pwSave').onclick=async()=>{
+      const p=$('#pwP').value; if(p!==$('#pwP2').value) return toast('The two passwords do not match', true);
+      if(p.length<8 || !/[A-Za-z]/.test(p) || !/[0-9]/.test(p)) return toast('Password: at least 8 characters with letters and numbers', true);
+      try{
+        const r = await call('pwReset',{email:$('#pwE').value.trim(), otp:$('#pwC').value.trim(), password:p});
+        store.set('lastEmail', $('#pwE').value.trim().toLowerCase());
+        closeSheet(); toast('Password saved');
+        if(!loggedIn){ S.token=r.token; store.set('token', r.token); store.set('loginMode','mail'); await boot(); }
+      }catch(err){ toast(err.message,true); }
+    };
+  });
 }
 function logoutLocal(){ S.token=null; store.del('token'); showLogin(); }
 
@@ -580,8 +647,9 @@ $('#avatar').addEventListener('click', e=>{
   const ov=$('#overlay');
   if(ov.querySelector('.menu')){ ov.innerHTML=''; return; }
   ov.innerHTML=`<div class="menu"><div class="who"><b>${esc(S.user.name)}</b><div class="muted small">${esc(S.user.code)} · ${esc(ROLE_LABEL[S.user.role]||S.user.role)}</div></div>
-    <button id="mPin">Change PIN</button><button id="mRef">Reload stock</button><button id="mOut" style="color:var(--bad)">Sign out</button></div>`;
+    <button id="mPin">Change PIN</button><button id="mMail">Email &amp; password login</button><button id="mRef">Reload stock</button><button id="mOut" style="color:var(--bad)">Sign out</button></div>`;
   $('#mPin').onclick=()=>{ov.innerHTML='';changePin();};
+  $('#mMail').onclick=()=>{ov.innerHTML='';passwordSheet(store.get('lastEmail',''), true);};
   $('#mRef').onclick=()=>{ov.innerHTML=''; S.catalog={}; loadCatalog(S.branch,true).then(()=>toast('Stock reloaded'));};
   $('#mOut').onclick=async()=>{ov.innerHTML=''; try{await call('logout');}catch(e){} logoutLocal();};
 });
@@ -1550,7 +1618,7 @@ function editUser(u){
     <div class="lbl" style="margin-top:12px" id="ubl">Branches</div><div class="chips" id="ub" style="flex-wrap:wrap"><button class="fchip ${allB?'on':''}" data-uball="1">All branches</button>${all.map(b=>`<button class="fchip ${!allB&&sel.includes(b)?'on':''}" data-ub="${esc(b)}">${esc(b)}</button>`).join('')}</div>
     <div class="row" style="margin-top:6px"><div style="width:130px"><div class="lbl">Code</div><input class="field" id="uc" value="${esc(u.code)}" ${isNew?'':'disabled'} autocapitalize="characters"></div><div class="grow"><div class="lbl">Name</div><input class="field" id="un" value="${esc(u.name)}" autocapitalize="characters"></div></div>
     <div class="row" style="margin-top:10px"><div style="width:130px"><div class="lbl">PIN</div><input class="field num" id="up" value="${esc(u.pin)}" inputmode="numeric" maxlength="6" placeholder="${isNew?'':'unchanged'}"></div><div class="grow"><div class="lbl">Mobile</div><input class="field" id="um" value="${esc(u.mobile)}" inputmode="tel"></div></div>
-    <div class="row" style="margin-top:10px"><div class="grow"><div class="lbl">Email (gets "order executed" mails)</div><input class="field" id="ue" value="${esc(u.email)}" inputmode="email"></div><div style="width:140px"><div class="lbl">Monthly target ₹</div><input class="field num" id="ut" value="${esc(u.target||'')}" inputmode="numeric"></div></div>
+    <div class="row" style="margin-top:10px"><div class="grow"><div class="lbl">Email (email login + "order executed" mails)</div><input class="field" id="ue" value="${esc(u.email)}" inputmode="email"></div><div style="width:140px"><div class="lbl">Monthly target ₹</div><input class="field num" id="ut" value="${esc(u.target||'')}" inputmode="numeric"></div></div>
     <div class="trow" style="margin-top:8px"><span><b>Active</b><div class="small muted">Off = cannot log in (keeps history)</div></span><button class="tog ${act?'on':''}" id="ua"><i></i></button></div>
     <button class="btn primary block" id="us" style="margin-top:14px">${isNew?'Create user':'Save changes'}</button>`, ()=>{
     const HELP={SALES:'Places orders; sees only his own orders and sales.',
