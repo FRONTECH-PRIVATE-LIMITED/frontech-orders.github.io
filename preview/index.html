@@ -81,6 +81,7 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:25;height:calc(var(--nav) + v
 nav .in{display:flex;width:100%;max-width:560px}
 nav button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--mute);font-size:11.5px;font-weight:600;cursor:pointer;position:relative;transition:color .2s}
 nav button svg{width:23px;height:23px;transition:transform .2s}
+nav .in:has(button:nth-child(6)) button{font-size:10.5px;letter-spacing:-.01em}
 nav button.on{color:var(--brand)}
 nav button.on svg{transform:translateY(-1px) scale(1.06)}
 .badge{position:absolute;top:8px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--bad);color:#fff;font-size:10.5px;display:grid;place-items:center;padding:0 5px;font-weight:700;box-shadow:0 0 0 2px var(--card)}
@@ -479,6 +480,17 @@ nav button.on svg{color:#fff;background:var(--grad);border-radius:100px;padding:
 
 @media (prefers-color-scheme:dark){.hlogo{display:none}}
 @media (prefers-color-scheme:light){.htitle b{display:none}.htitle small{font-size:11.5px;white-space:normal;line-height:1.25;overflow:visible}.htitle small .dot{flex:none}.bpill{max-width:120px}}
+details.inact{border-top:1px solid var(--line)}
+details.inact summary{cursor:pointer;padding:14px 16px;font-weight:700;font-size:14px;color:var(--mute);list-style:none}
+details.inact summary::-webkit-details-marker{display:none}
+details.inact summary::before{content:'▸ ';display:inline-block;transition:transform .15s}
+details.inact[open] summary::before{transform:rotate(90deg)}
+details.inact .urow{opacity:.72}
+.tog.sm{transform:scale(.82);flex:none;margin-left:6px}
+.emo{display:flex;flex-wrap:wrap;gap:6px}.emo button{border:1px solid var(--line);background:var(--card);border-radius:12px;font-size:22px;width:44px;height:44px;cursor:pointer}
+.ntprev{display:flex;gap:12px;align-items:flex-start;margin-top:8px;padding:12px;border-radius:16px;background:var(--bg)}.ntprev img{width:40px;height:40px;flex:none}
+.ntprev b{display:block;font-size:15px;word-break:break-word}#pvB{white-space:pre-wrap;word-break:break-word}
+.nplist{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:14px}.nprow{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -872,11 +884,12 @@ function prefetch(){
     if(S.user.role==='SALES'){
       refreshMyOrders(true);
       call('sales',{month:S.month,scope:'ME'},{silent:true}).then(r=>C.set('sales_'+S.month,r)).catch(()=>{});
+      if(S.user.views) loadPending(true);
     } else {
       loadPending(true);
       { const R=S.histRange=S.histRange||defaultRange(); call('branchOrders',{branch:'ALL',status:'EXECUTED',from:R.from,to:R.to},{silent:true}).then(l=>C.set('hist_EXECUTED_'+R.from+'_'+R.to,l)).catch(()=>{}); }
       const tb = S.user.role==='ADMIN' ? '' : (S.branch==='ALL'?'':S.branch);
-      call('sales',{month:S.month,scope:'TEAM',branch:tb},{silent:true}).then(r=>C.set('team_'+S.month+'_'+tb,r)).catch(()=>{});
+      { const R=S.teamRange=S.teamRange||defaultRange(); call('sales',{month:R.from.slice(0,7),scope:'TEAM',branch:tb,from:R.from,to:R.to},{silent:true}).then(r=>C.set('team_'+R.from+'_'+R.to+'_'+tb,r)).catch(()=>{}); }
       if(S.user.role==='ADMIN') call('adminOverview',{}, {silent:true}).then(r=>C.set('ov',r)).catch(()=>{});
     }
   }, 300);
@@ -938,7 +951,8 @@ function changePin(){
    NAV
    ================================================================== */
 function tabsFor(role){
-  if(role==='SALES') return [['order','New Order',IC.cart],['orders','My Orders',IC.list],['sales','My Sales',IC.chart],['stock','Stock',IC.box]];
+  if(role==='SALES') return S.user&&S.user.views ? [['order','New Order',IC.cart],['orders','My Orders',IC.list],['sales','My Sales',IC.chart],['pending','Pending',IC.inbox],['team','Team',IC.team],['stock','Stock',IC.box]]
+                                              : [['order','New Order',IC.cart],['orders','My Orders',IC.list],['sales','My Sales',IC.chart],['stock','Stock',IC.box]];
   if(role==='ACCOUNTANT' || role==='HOD') return [['pending','Pending',IC.inbox],['history','Executed',IC.clock],['order','New Order',IC.cart],['team','Team',IC.team],['stock','Stock',IC.box]];
   return [['overview','Admin',IC.gear],['pending','Pending',IC.inbox],['history','Executed',IC.clock],['team','Team',IC.team],['stock','Stock',IC.box]];
 }
@@ -1731,18 +1745,25 @@ function respond(o,accept){
    VIEW: HISTORY
    ================================================================== */
 function isoDay(d){ const t=new Date(d.getTime()-d.getTimezoneOffset()*6e4); return t.toISOString().slice(0,10); }
-function defaultRange(){ const to=new Date(), from=new Date(Date.now()-30*864e5); return {from:isoDay(from), to:isoDay(to)}; }
+function monthStart(){ const d=new Date(); return isoDay(new Date(d.getFullYear(), d.getMonth(), 1)); }
+function defaultRange(){ return {from:monthStart(), to:isoDay(new Date())}; }          // current month by default
+const RANGE_CHIPS=[['T','Today'],['M','This month'],['7','7 days'],['30','30 days'],['90','3 months'],['365','1 year']];
+function rangeOf(k){ const t=isoDay(new Date()); return k==='T'?{from:t,to:t} : k==='M'?{from:monthStart(),to:t} : {from:isoDay(new Date(Date.now()-(+k)*864e5)),to:t}; }
 function rangeBar(r, label){
+  const on=k=>{ const x=rangeOf(k); return x.from===r.from&&x.to===r.to; };
   return `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end">
     <div><div class="lbl">${label} from</div><input class="field" type="date" id="rf" value="${r.from}" style="width:150px;height:42px"></div>
     <div><div class="lbl">to</div><input class="field" type="date" id="rt" value="${r.to}" style="width:150px;height:42px"></div>
-    <div class="chips" style="margin:0">${[['7','7 days'],['30','30 days'],['90','3 months'],['365','1 year']].map(([d,l])=>`<button class="fchip" data-rd="${d}">${l}</button>`).join('')}</div></div>`;
+    <div class="chips" style="margin:0;flex-wrap:wrap;overflow:visible">${RANGE_CHIPS.map(([d,l])=>`<button class="fchip ${on(d)?'on':''}" data-rd="${d}">${l}</button>`).join('')}</div></div>`;
 }
 function bindRange(r, reload){
-  const go2=()=>{ r.from=$('#rf').value||r.from; r.to=$('#rt').value||r.to; reload(); };
+  const mark=()=>document.querySelectorAll('[data-rd]').forEach(b=>{ const x=rangeOf(b.dataset.rd); b.classList.toggle('on', x.from===r.from&&x.to===r.to); });
+  const go2=()=>{ r.from=$('#rf').value||r.from; r.to=$('#rt').value||r.to; if(r.from>r.to){ const t=r.from; r.from=r.to; r.to=t; $('#rf').value=r.from; $('#rt').value=r.to; } mark(); reload(); };
   $('#rf').onchange=go2; $('#rt').onchange=go2;
-  document.querySelectorAll('[data-rd]').forEach(b=>b.onclick=()=>{ $('#rt').value=isoDay(new Date()); $('#rf').value=isoDay(new Date(Date.now()-(+b.dataset.rd)*864e5)); go2(); });
+  document.querySelectorAll('[data-rd]').forEach(b=>b.onclick=()=>{ const x=rangeOf(b.dataset.rd); $('#rf').value=x.from; $('#rt').value=x.to; go2(); });
 }
+function rangeLabel(r){ const f=d=>fmtDate(d+'T12:00:00'); if(r.from===r.to) return r.from===isoDay(new Date())?'Today':f(r.from);
+  const x=rangeOf('M'); if(r.from===x.from&&r.to===x.to) return monthLabel(r.from.slice(0,7)); return f(r.from)+' – '+f(r.to); }
 async function viewHistory(){
   if(!S.branch){ $('#main').innerHTML='<div class="card empty">No branch assigned.</div>'; return; }
   const f=S.filters.hist; S.histRange=S.histRange||defaultRange(); const R=S.histRange;
@@ -1770,34 +1791,38 @@ async function viewHistory(){
    VIEW: TEAM (accountant / admin)
    ================================================================== */
 async function viewTeam(){
-  const m=S.month, branches=(S.user.role==='ADMIN'||S.user.branches.length>1)?['',...S.user.branches]:S.user.branches;
+  const branches=(S.user.role==='ADMIN'||S.user.branches.length>1)?['',...S.user.branches]:S.user.branches;
   if(S.teamBranch===undefined) S.teamBranch=(S.user.role==='ADMIN'||S.branch==='ALL')?'':S.branch;
-  $('#main').innerHTML=`<div class="view"><div class="mon"><button class="ib" id="mp">‹</button><b>${monthLabel(m)}</b><button class="ib" id="mn">›</button></div>
+  const R=S.teamRange=S.teamRange||defaultRange(), m=R.from.slice(0,7);
+  const whole = R.from===m+'-01' && R.to.slice(0,7)===m && (R.to===isoDay(new Date()) || R.to===isoDay(new Date(+m.slice(0,4), +m.slice(5,7), 0)));   // a whole (or month-to-date) month
+  $('#main').innerHTML=`<div class="view">${rangeBar(R,'Orders')}
     ${branches.length>1?`<div class="chips">${branches.map(b=>`<button class="fchip ${S.teamBranch===b?'on':''}" data-tb="${esc(b)}">${b||'All branches'}</button>`).join('')}</div>`:''}
     <div id="tbody"><div class="skel" style="height:120px"></div><div class="skel"></div><div class="skel"></div></div></div>`;
-  $('#mp').onclick=()=>{S.month=shiftMonth(m,-1);viewTeam();}; $('#mn').onclick=()=>{S.month=shiftMonth(m,1);viewTeam();};
+  bindRange(R, viewTeam);
   document.querySelectorAll('[data-tb]').forEach(b=>b.onclick=()=>{ S.teamBranch=b.dataset.tb; viewTeam(); });
-  const tkey='team_'+m+'_'+S.teamBranch;
+  const tkey='team_'+R.from+'_'+R.to+'_'+S.teamBranch, rk=R.from+'_'+R.to;
   const draw=r=>{
-    if(S.tab!=='team'||S.month!==m||!$('#tbody')) return;
+    if(S.tab!=='team'||(S.teamRange.from+'_'+S.teamRange.to)!==rk||!$('#tbody')) return;
     const sp={};
-    Object.entries(r.targets).forEach(([code,t])=>{ if(t.role!=='SALES') return; const bs=t.branches.split(/[,;|]/).map(x=>x.trim());
+    Object.entries(r.targets).forEach(([code,t])=>{ if(t.role!=='SALES' || t.active===false) return; const bs=t.branches.split(/[,;|]/).map(x=>x.trim());
       if(S.teamBranch ? bs.includes(S.teamBranch) : (S.user.role==='ADMIN' || bs.some(b=>S.user.branches.includes(b)))) sp[code]={code,n:t.name,t:t.target,a:0,p:0,c:0}; });
     r.orders.forEach(o=>{ const s=sp[o.sp]=sp[o.sp]||{code:o.sp,n:o.spName,t:(r.targets[o.sp]||{}).target||0,a:0,p:0,c:0};
       if(o.status==='EXECUTED'){ s.a+=o.taxable; s.c++; } else if(o.status==='PENDING') s.p+=o.taxable; });
     const list=Object.values(sp).sort((a,b)=>b.a-a.a);
     const A=list.reduce((x,s)=>x+s.a,0), T=list.reduce((x,s)=>x+s.t,0), P=list.reduce((x,s)=>x+s.p,0);
-    $('#tbody').innerHTML=`<div class="hero"><div class="lab">${esc(S.teamBranch||'All branches')} · executed (taxable)</div><div class="big num">${inr(A)}</div>
+    const T0=T; { const T=whole?T0:0;
+    $('#tbody').innerHTML=`<div class="hero"><div class="lab">${esc(S.teamBranch||'All branches')} · ${esc(rangeLabel(R))} · executed (taxable)</div><div class="big num">${inr(A)}</div>
       ${T?`<div class="bar"><i id="hb" style="width:0"></i></div><div class="row" style="justify-content:space-between;font-size:13px;color:#c7d2fe"><span>${(A/T*100).toFixed(0)}% of team target</span><span>Target ${inr(T)}</span></div>`:''}</div>
       <div class="kpis"><div class="kpi"><div class="lab">Sales persons</div><div class="v num">${list.length}</div></div><div class="kpi"><div class="lab">Pending value</div><div class="v num">${inr(P)}</div></div><div class="kpi"><div class="lab">Orders executed</div><div class="v num">${list.reduce((x,s)=>x+s.c,0)}</div></div></div>
       <div class="card"><table class="t"><tr><th>Sales person</th><th class="r">Achieved</th><th class="r">%</th></tr>
-      ${list.map(s=>`<tr data-sp="${esc(s.code)}" style="cursor:pointer"><td><b>${esc(s.n)}</b><div class="small muted">${s.c} executed · pending ${inr(s.p)}${s.t?' · target '+inr(s.t):''}</div>${s.t?`<div class="pbar"><i style="width:${Math.min(100,s.a/s.t*100)}%"></i></div>`:''}</td><td class="r num">${inr(s.a)}</td><td class="r num">${s.t?(s.a/s.t*100).toFixed(0)+'%':'—'}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">No sales persons.</td></tr>'}</table></div>`;
-    setTimeout(()=>{ const hb=$('#hb'); if(hb) hb.style.width=Math.min(100,A/T*100)+'%'; },60);
+      ${list.map(s=>{ const st=whole?s.t:0; return `<tr data-sp="${esc(s.code)}" style="cursor:pointer"><td><b>${esc(s.n)}</b><div class="small muted">${s.c} executed · pending ${inr(s.p)}${st?' · target '+inr(st):''}</div>${st?`<div class="pbar"><i style="width:${Math.min(100,s.a/st*100)}%"></i></div>`:''}</td><td class="r num">${inr(s.a)}</td><td class="r num">${st?(s.a/st*100).toFixed(0)+'%':'—'}</td></tr>`; }).join('')||'<tr><td colspan="3" class="empty">No sales persons.</td></tr>'}</table></div>
+      <div class="small muted" style="margin:-4px 4px 10px">Orders placed in these dates. ${whole?'':'Targets show for a whole month only.'}</div>`;
+    setTimeout(()=>{ const hb=$('#hb'); if(hb&&T) hb.style.width=Math.min(100,A/T*100)+'%'; },60); }
     document.querySelectorAll('[data-sp]').forEach(tr=>tr.onclick=()=>{ const s=sp[tr.dataset.sp]; const ex=r.orders.filter(o=>o.sp===s.code&&o.status==='EXECUTED');
-      openSheet(`<h2>${esc(s.n)}</h2><p class="muted small">${monthLabel(m)} · ${inr(s.a)} executed</p>${breakdown(ex)}`, bindBreakdown); });
+      openSheet(`<h2>${esc(s.n)}</h2><p class="muted small">${esc(rangeLabel(R))} · ${inr(s.a)} executed</p>${breakdown(ex)}`, bindBreakdown); });
   };
   const c=C.get(tkey); if(c) draw(c);
-  try{ const r=await call('sales',{month:m,scope:'TEAM',branch:S.teamBranch},{silent:!!c}); C.set(tkey,r); draw(r); }
+  try{ const r=await call('sales',{month:m,scope:'TEAM',branch:S.teamBranch,from:R.from,to:R.to},{silent:!!c}); C.set(tkey,r); draw(r); }
   catch(e){ if(!c) $('#tbody').innerHTML=`<div class="card empty">${esc(e.message)}</div>`; }
 }
 
@@ -1819,7 +1844,8 @@ function drawOverview(r){
     <div class="card"><div class="ct"><h3>Manage</h3></div><div class="mgrid">
       <button class="mtile" data-m="users"><span>Logins, PINs, targets</span><b>Users</b></button>
       <button class="mtile" data-m="partners"><span>Edit, WhatsApp, deactivate</span><b>Partners</b></button>
-      <button class="mtile" data-m="branches"><span>Stock depot, account IDs</span><b>Branches</b></button></div>
+      <button class="mtile" data-m="branches"><span>Stock depot, account IDs</span><b>Branches</b></button>
+      <button class="mtile" data-m="push"><span>Pop-up to phones, with emoji</span><b>Send notification</b></button></div>
       <div class="row" style="flex-wrap:wrap;margin-top:12px"><button class="btn ghost sm" id="aS" style="display:none">Create sales users from report</button></div></div>
     <div class="card"><div class="ct"><h3>Pending by branch</h3></div><table class="t"><tr><th>Branch</th><th class="r">Orders</th><th class="r">Value</th></tr>${pb.map(([b,v])=>`<tr data-pb="${esc(b)}" style="cursor:pointer"><td><b>${esc(b)}</b></td><td class="r num">${v.pending}</td><td class="r num">${inr(v.value)}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">No pending orders</td></tr>'}</table></div>
     <div class="card"><div class="ct" id="logHead" style="cursor:pointer;margin:0"><h3>Activity log · ${r.logCount||0} entries</h3><span class="small" style="color:var(--brand);font-weight:700" id="logTog">Show ▾</span></div><div id="logBody" class="hidden" style="margin-top:12px"></div></div>`;
@@ -1829,7 +1855,7 @@ function drawOverview(r){
   $('#aU').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
     rd.onload=async()=>{ try{ const b64=rd.result.split(',')[1]; const x=await call('adminUploadReport',{base64:b64,name:f.name}); toast(x.message); afterStock(); }catch(err){ toast(err.message,true);} };
     rd.readAsDataURL(f); };
-  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>({users:viewUsers,partners:viewPartners,branches:viewBranches}[b.dataset.m])());
+  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>({users:viewUsers,partners:viewPartners,branches:viewBranches,push:viewPush}[b.dataset.m])());
   document.querySelectorAll('[data-pb]').forEach(tr=>tr.onclick=()=>{ S.bsel=[tr.dataset.pb]; S.branch=tr.dataset.pb; renderHeader(); go('pending'); });
   $('#logHead').onclick=toggleLog;
 }
@@ -1865,8 +1891,14 @@ async function viewUsers(){
   let role='ALL';
   const draw=()=>{ const l=C.get('users')||[]; const q=norm($('#uq').value);
     const f=l.filter(u=>(role==='ALL'||u.role===role)&&(!q||norm(u.code+' '+u.name+' '+u.branches+' '+u.mobile).includes(q))).sort((a,b)=>a.code.localeCompare(b.code));
-    $('#ulist').innerHTML = f.map(u=>`<div class="urow" data-u="${esc(u.code)}"><div class="ucode">${esc(u.code)}</div><div class="grow"><b>${esc(u.name)}</b><div class="small muted">${esc(ROLE_LABEL[u.role]||u.role)} · ${esc(u.branches)}${u.mobile?' · '+esc(u.mobile):''}</div></div>${u.active?'':'<span class="chip no">Inactive</span>'}</div>`).join('') || '<div class="empty">No users</div>';
-    document.querySelectorAll('[data-u]').forEach(r=>r.onclick=()=>editUser(l.find(u=>u.code===r.dataset.u))); };
+    const row=u=>`<div class="urow" data-u="${esc(u.code)}"><div class="ucode">${esc(u.code)}</div><div class="grow"><b>${esc(u.name)}</b><div class="small muted">${esc(ROLE_LABEL[u.role]||u.role)}${u.views?' + Pending/Team':''} · ${esc(u.branches)}${u.mobile?' · '+esc(u.mobile):''}</div></div><button class="tog sm ${u.active?'on':''}" data-ua="${esc(u.code)}" title="Active"><i></i></button></div>`;
+    const on=f.filter(u=>u.active), off=f.filter(u=>!u.active);
+    $('#ulist').innerHTML = (on.map(row).join('') || '<div class="empty">No active users</div>')
+      + (off.length?`<details class="inact"${q?' open':''}><summary>Inactive users (${off.length})</summary>${off.map(row).join('')}</details>`:'');
+    document.querySelectorAll('[data-u]').forEach(r=>r.onclick=()=>editUser(l.find(u=>u.code===r.dataset.u)));
+    document.querySelectorAll('[data-ua]').forEach(b=>b.onclick=async e=>{ e.stopPropagation(); const u=l.find(x=>x.code===b.dataset.ua), act=!u.active;
+      if(!act && !confirm(u.code+' · '+u.name+'\n\nMake inactive? This ID will not be able to log in (its orders and history stay).')) return;
+      b.disabled=true; try{ await call('adminSetActive',{kind:'user',code:u.code,active:act}); u.active=act; toast(u.code+(act?' is active again':' is now inactive')); draw(); }catch(err){ toast(err.message,true); b.disabled=false; } }); };
   $('#uq').oninput=draw;
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ role=b.dataset.r; document.querySelectorAll('[data-r]').forEach(x=>x.classList.toggle('on',x===b)); draw(); });
   $('#uAdd').onclick=()=>editUser(null);
@@ -1880,7 +1912,7 @@ function nextCode(branch){
 }
 function editUser(u){
   const isNew=!u; u=u||{code:'',name:'',role:'SALES',branches:'',pin:String(1000+Math.floor(Math.random()*9000)),active:true,mobile:'',email:'',target:''};
-  let role=u.role, act=u.active!==false, sel=u.branches&&u.branches!=='ALL'?u.branches.split(/\s*,\s*/):[], allB=u.branches==='ALL';
+  let role=u.role, act=u.active!==false, views=!!u.views, sel=u.branches&&u.branches!=='ALL'?u.branches.split(/\s*,\s*/):[], allB=u.branches==='ALL';
   const all=S.user.branches;
   openSheet(`<h2>${isNew?'Add user':'Edit '+esc(u.code)}</h2><p class="muted small">${isNew?'Pick the branch first — the next free code is suggested.':'Changing the name hands this code to a new person; the old person\'s orders stay recorded but won\'t show in the new person\'s My Orders / My Sales.'}</p>
     <div class="lbl" style="margin-top:12px">Role</div><div class="seg" id="ur" style="margin-bottom:0">${['SALES','ACCOUNTANT','HOD','ADMIN'].map(r=>`<button data-rr="${r}" class="${role===r?'on':''}">${ROLE_LABEL[r]}</button>`).join('')}</div>
@@ -1889,13 +1921,14 @@ function editUser(u){
     <div class="row" style="margin-top:6px"><div style="width:130px"><div class="lbl">Code</div><input class="field" id="uc" value="${esc(u.code)}" ${isNew?'':'disabled'} autocapitalize="characters"></div><div class="grow"><div class="lbl">Name</div><input class="field" id="un" value="${esc(u.name)}" autocapitalize="characters"></div></div>
     <div class="row" style="margin-top:10px"><div style="width:130px"><div class="lbl">PIN</div><input class="field num" id="up" value="${esc(u.pin)}" inputmode="numeric" maxlength="6" placeholder="${isNew?'':'unchanged'}"></div><div class="grow"><div class="lbl">Mobile</div><input class="field" id="um" value="${esc(u.mobile)}" inputmode="tel"></div></div>
     <div class="row" style="margin-top:10px"><div class="grow"><div class="lbl">Email (email login + "order executed" mails)</div><input class="field" id="ue" value="${esc(u.email)}" inputmode="email"></div><div style="width:140px"><div class="lbl">Monthly target ₹</div><input class="field num" id="ut" value="${esc(u.target||'')}" inputmode="numeric"></div></div>
+    <div class="trow" style="margin-top:8px" id="uvw"><span><b>Also show Pending &amp; Team</b><div class="small muted">For a branch head: sees the pending orders and team sales of the branches above (cannot execute). Keeps My Orders &amp; My Sales.</div></span><button class="tog ${views?'on':''}" id="uv"><i></i></button></div>
     <div class="trow" style="margin-top:8px"><span><b>Active</b><div class="small muted">Off = cannot log in (keeps history)</div></span><button class="tog ${act?'on':''}" id="ua"><i></i></button></div>
     <button class="btn primary block" id="us" style="margin-top:14px">${isNew?'Create user':'Save changes'}</button>`, ()=>{
     const HELP={SALES:'Places orders; sees only his own orders and sales.',
       ACCOUNTANT:'Sees all orders of every sales person in the branches it covers; executes, modifies, attaches invoices and can place orders too.',
       HOD:'Sales head: places orders and views pending / executed orders and team sales of the assigned branches (cannot execute).',
       ADMIN:'Everything, plus Users, Partners, Branches and stock refresh.'};
-    const setRoleUi=()=>{ $('#ubl').textContent = role==='ACCOUNTANT' ? 'Stock depot(s) — covers every branch drawing from it' : role==='ADMIN' ? 'Branches (admin sees all)' : role==='HOD' ? 'Assigned branches' : 'Branches'; $('#urh').textContent=HELP[role]||''; };
+    const setRoleUi=()=>{ $('#uvw').classList.toggle('hidden', role!=='SALES'); $('#ubl').textContent = role==='ACCOUNTANT' ? 'Stock depot(s) — covers every branch drawing from it' : role==='ADMIN' ? 'Branches (admin sees all)' : role==='HOD' ? 'Assigned branches' : 'Branches'; $('#urh').textContent=HELP[role]||''; };
     setRoleUi();
     document.querySelectorAll('[data-rr]').forEach(b=>b.onclick=()=>{ role=b.dataset.rr; document.querySelectorAll('[data-rr]').forEach(x=>x.classList.toggle('on',x===b)); setRoleUi(); });
     const allBtn=document.querySelector('[data-uball]');
@@ -1903,8 +1936,9 @@ function editUser(u){
     document.querySelectorAll('[data-ub]').forEach(b=>b.onclick=()=>{ const v=b.dataset.ub; if(allB){ allB=false; allBtn.classList.remove('on'); } sel=sel.includes(v)?sel.filter(x=>x!==v):sel.concat([v]); b.classList.toggle('on'); if(isNew && sel.length===1 && !$('#uc').dataset.touched) $('#uc').value=role==='ACCOUNTANT'?'ACC'+v.replace(/[^A-Z]/g,'').slice(0,3):nextCode(v); });
     $('#uc').oninput=()=>{ $('#uc').dataset.touched='1'; };
     $('#ua').onclick=()=>{ act=!act; $('#ua').classList.toggle('on',act); };
+    $('#uv').onclick=()=>{ views=!views; $('#uv').classList.toggle('on',views); };
     $('#us').onclick=async()=>{ const b=$('#us'); b.disabled=true;
-      try{ await call('adminSaveUser',{isNew, code:$('#uc').value, name:$('#un').value, role, branches:allB||(role==='ADMIN'&&!sel.length)?'ALL':sel.join(', '), pin:$('#up').value, mobile:$('#um').value, email:$('#ue').value, target:$('#ut').value, active:act});
+      try{ await call('adminSaveUser',{isNew, code:$('#uc').value, name:$('#un').value, role, branches:allB||(role==='ADMIN'&&!sel.length)?'ALL':sel.join(', '), pin:$('#up').value, mobile:$('#um').value, email:$('#ue').value, target:$('#ut').value, active:act, views:role==='SALES'&&views});
         closeSheet(); toast(isNew?'User created':'Saved'); C.set('users', await call('adminUsers',{}, {silent:true})); if(S.sub==='users') viewUsers(); }
       catch(e){ toast(e.message,true); b.disabled=false; } };
   });
@@ -1920,9 +1954,14 @@ async function viewPartners(){
     <div class="card" style="padding:0" id="plist2"><div class="skel" style="margin:12px"></div></div></div>`;
   $('#bk').onclick=()=>{ S.sub=null; viewOverview(); };
   const draw=()=>{ const l=C.get('partners')||[]; const q=norm($('#pq2').value);
-    const f=l.filter(x=>(pb==='ALL'||x.branch===pb)&&(!q||norm(x.name+' '+x.loc+' '+x.mobile).includes(q))).slice(0,300);
-    $('#plist2').innerHTML = f.map(x=>`<div class="urow" data-pid="${esc(x.id)}"><div class="pav" style="width:38px;height:38px">${esc(x.name[0])}</div><div class="grow"><b>${esc(x.name)}</b><div class="small muted">${esc(x.loc)} · ${esc(x.branch)}${x.mobile?' · '+esc(x.mobile):''}</div></div>${x.wa?'<span class="chip br">WhatsApp</span>':''}${x.active?'':'<span class="chip no">Inactive</span>'}</div>`).join('') || '<div class="empty">No partners yet. Sales people add them while placing orders.</div>';
-    document.querySelectorAll('[data-pid]').forEach(r=>r.onclick=()=>editPartner(l.find(x=>x.id===r.dataset.pid))); };
+    const f=l.filter(x=>(pb==='ALL'||x.branch===pb)&&(!q||norm(x.name+' '+x.loc+' '+x.mobile).includes(q))).slice(0,600);
+    const row=x=>`<div class="urow" data-pid="${esc(x.id)}"><div class="pav" style="width:38px;height:38px">${esc(x.name[0])}</div><div class="grow"><b>${esc(x.name)}</b><div class="small muted">${esc(x.loc)} · ${esc(x.branch)}${x.mobile?' · '+esc(x.mobile):''}</div></div>${x.wa?'<span class="chip br">WhatsApp</span>':''}<button class="tog sm ${x.active?'on':''}" data-pa="${esc(x.id)}" title="Active"><i></i></button></div>`;
+    const on=f.filter(x=>x.active), off=f.filter(x=>!x.active);
+    $('#plist2').innerHTML = (on.map(row).join('') || '<div class="empty">No active partners here. Sales people add them while placing orders.</div>')
+      + (off.length?`<details class="inact"${q?' open':''}><summary>Inactive partners (${off.length}) — hidden from sales people</summary>${off.map(row).join('')}</details>`:'');
+    document.querySelectorAll('[data-pid]').forEach(r=>r.onclick=()=>editPartner(l.find(x=>x.id===r.dataset.pid)));
+    document.querySelectorAll('[data-pa]').forEach(b=>b.onclick=async e=>{ e.stopPropagation(); const x=l.find(y=>y.id===b.dataset.pa), act=!x.active;
+      b.disabled=true; try{ await call('adminSetActive',{kind:'partner',id:x.id,active:act}); x.active=act; toast(x.name+(act?' is active again':' is now inactive')); draw(); }catch(err){ toast(err.message,true); b.disabled=false; } }); };
   $('#pq2').oninput=draw; $('#pbr').onchange=()=>{ pb=$('#pbr').value; draw(); };
   if(C.get('partners')) draw();
   try{ C.set('partners', await call('adminPartners',{branch:'ALL'}, {silent:!!C.get('partners')})); if(S.sub==='partners') draw(); }catch(e){ toast(e.message,true); }
@@ -1943,6 +1982,56 @@ function editPartner(x){
         closeSheet(); toast('Partner saved'); C.set('partners', await call('adminPartners',{branch:'ALL'},{silent:true})); if(S.sub==='partners') viewPartners(); }
       catch(e){ toast(e.message,true); b.disabled=false; } };
   });
+}
+
+/* ---------- Manage: send a notification to phones ---------- */
+const EMOJI=['📢','🔔','✅','🎉','🚀','⚠️','❗','📦','💰','📈','🏆','🙏','👍','🔥','⏰','📅','🛒','💬','🎯','🪔'];
+async function viewPush(){
+  S.sub='push'; window.scrollTo({top:0});
+  const A=S.pushA=S.pushA||{type:'ALL',branches:[],roles:[],codes:[]};
+  const users=C.get('users')||[];
+  $('#main').innerHTML=`<div class="view">${subHead('Send notification')}
+    <div class="card"><div class="lbl">Title</div><input class="field" id="ntT" maxlength="120" placeholder="e.g. 📢 New scheme from Monday">
+      <div class="lbl" style="margin-top:10px">Message</div><textarea class="field" id="ntB" maxlength="240" rows="3" placeholder="Write the message… emoji from your phone keyboard work too"></textarea>
+      <div class="small muted" style="margin:6px 0 4px">Tap to add an emoji where the cursor is</div>
+      <div class="emo">${EMOJI.map(e=>`<button data-e="${e}">${e}</button>`).join('')}</div></div>
+    <div class="card"><div class="lbl">Send to</div><div class="seg" id="ntA" style="margin:4px 0 10px">${[['ALL','Everyone'],['BRANCH','Branches'],['ROLE','Roles'],['PEOPLE','People']].map(([k,l])=>`<button data-a="${k}" class="${A.type===k?'on':''}">${l}</button>`).join('')}</div>
+      <div id="ntPick"></div><div class="small" id="ntN" style="margin-top:10px;font-weight:700"></div></div>
+    <div class="card"><div class="lbl">Preview</div><div class="ntprev"><img src="/icon-192.png" alt=""><div class="grow"><div class="small muted">FT ORDERS · now</div><b id="pvT">Title</b><div id="pvB" class="small"></div></div></div></div>
+    <button class="btn primary block" id="ntS">Send notification</button>
+    <div class="card" style="margin-top:14px"><div class="ct"><h3>Sent recently</h3></div><div id="ntLog" class="small muted">Loading…</div></div></div>`;
+  $('#bk').onclick=()=>{ S.sub=null; viewOverview(); };
+  let lastFocus=$('#ntT');
+  ['ntT','ntB'].forEach(id=>{ $('#'+id).onfocus=()=>{ lastFocus=$('#'+id); }; $('#'+id).oninput=pv; });
+  function pv(){ $('#pvT').textContent=$('#ntT').value||'Title'; $('#pvB').textContent=$('#ntB').value; }
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{ const f=lastFocus, a=f.selectionStart??f.value.length, z=f.selectionEnd??a;
+    f.value=f.value.slice(0,a)+b.dataset.e+f.value.slice(z); f.focus(); const p=a+b.dataset.e.length; try{ f.setSelectionRange(p,p); }catch(e){} pv(); });
+  const ROLES=[['SALES','Sales'],['HOD','Sales HOD'],['ACCOUNTANT','Accounts'],['ADMIN','Admin']];
+  const pick=()=>{ const el=$('#ntPick');
+    if(A.type==='ALL') el.innerHTML='<div class="small muted">Every active user who has notifications switched on.</div>';
+    if(A.type==='BRANCH') el.innerHTML=`<div class="chips" style="flex-wrap:wrap">${S.user.branches.map(b=>`<button class="fchip ${A.branches.includes(b)?'on':''}" data-nb="${esc(b)}">${esc(b)}</button>`).join('')}</div>`;
+    if(A.type==='ROLE') el.innerHTML=`<div class="chips" style="flex-wrap:wrap">${ROLES.map(([k,l])=>`<button class="fchip ${A.roles.includes(k)?'on':''}" data-nr="${k}">${l}</button>`).join('')}</div>`;
+    if(A.type==='PEOPLE') el.innerHTML=`<div class="sbox" style="margin-bottom:8px">${IC.search}<input class="field" id="npq" placeholder="Search code or name"></div><div id="npl" class="nplist"></div>`;
+    const tg=(arr,v)=>{ const i=arr.indexOf(v); if(i<0) arr.push(v); else arr.splice(i,1); };
+    el.querySelectorAll('[data-nb]').forEach(b=>b.onclick=()=>{ tg(A.branches,b.dataset.nb); b.classList.toggle('on'); count(); });
+    el.querySelectorAll('[data-nr]').forEach(b=>b.onclick=()=>{ tg(A.roles,b.dataset.nr); b.classList.toggle('on'); count(); });
+    if(A.type==='PEOPLE'){ const dr=()=>{ const q=norm($('#npq').value), l=(C.get('users')||[]).filter(u=>u.active&&(!q||norm(u.code+' '+u.name).includes(q)));
+        $('#npl').innerHTML=l.slice(0,200).map(u=>`<label class="nprow"><input type="checkbox" data-np="${esc(u.code)}" ${A.codes.includes(u.code)?'checked':''}> <b>${esc(u.code)}</b> ${esc(u.name)} <span class="muted">· ${esc(ROLE_LABEL[u.role]||u.role)}</span></label>`).join('')||'<div class="small muted">Nobody found</div>';
+        $('#npl').querySelectorAll('[data-np]').forEach(x=>x.onchange=()=>{ tg(A.codes,x.dataset.np); count(); }); };
+      $('#npq').oninput=dr; dr(); if(!C.get('users')) call('adminUsers',{},{silent:true}).then(l=>{ C.set('users',l); if(S.sub==='push') dr(); }).catch(()=>{}); }
+    count(); };
+  let cT=0; const count=()=>{ const my=++cT; $('#ntN').textContent='Counting…';
+    call('adminPush',{dry:true,audience:A},{silent:true}).then(r=>{ if(my!==cT) return; S.pushCount=r;
+      $('#ntN').innerHTML = r.people ? `Reaches <b>${r.withPhone}</b> of ${r.people} people <span class="muted" style="font-weight:500">(only those who switched on notifications)</span>` : '<span style="color:var(--bad)">Nobody selected</span>'; }).catch(e=>{ $('#ntN').textContent=e.message; }); };
+  document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{ A.type=b.dataset.a; document.querySelectorAll('[data-a]').forEach(x=>x.classList.toggle('on',x===b)); pick(); });
+  pick();
+  $('#ntS').onclick=async()=>{ const t=$('#ntT').value.trim(), m=$('#ntB').value.trim(); if(!t) return toast('Write a title',true);
+    const n=S.pushCount&&S.pushCount.withPhone; if(!confirm(`Send this notification now to ${n||0} people?\n\n${t}\n${m}`)) return;
+    const b=$('#ntS'); b.disabled=true;
+    try{ const r=await call('adminPush',{title:t,body:m,audience:A}); toast(`Sent to ${r.people} people (${r.phones} phones)`); $('#ntT').value=''; $('#ntB').value=''; pv(); loadLog(); }
+    catch(e){ toast(e.message,true); } finally{ b.disabled=false; } };
+  const loadLog=()=>call('adminPushLog',{},{silent:true}).then(l=>{ if(!$('#ntLog')) return; $('#ntLog').innerHTML=l.length?l.map(x=>`<div class="kv" style="align-items:flex-start"><span><b style="color:var(--ink)">${esc(x.title)}</b><br>${esc(x.body)}</span><span class="r" style="white-space:nowrap">${fmtDate(x.at,true)}<br>${x.people} people · ${esc(x.by)}</span></div>`).join(''):'Nothing sent from here yet.'; }).catch(()=>{});
+  loadLog();
 }
 
 /* ---------- Manage: branches & depot account IDs ---------- */
