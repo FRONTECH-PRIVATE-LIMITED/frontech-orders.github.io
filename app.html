@@ -491,6 +491,9 @@ details.inact .urow{opacity:.72}
 .ntprev{display:flex;gap:12px;align-items:flex-start;margin-top:8px;padding:12px;border-radius:16px;background:var(--bg)}.ntprev img{width:40px;height:40px;flex:none}
 .ntprev b{display:block;font-size:15px;word-break:break-word}#pvB{white-space:pre-wrap;word-break:break-word}
 .nplist{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:14px}.nprow{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.chip.modc{background:#fff4e5;color:#a15c07}
+@media (prefers-color-scheme:dark){.chip.modc{background:#3a2a10;color:#ffb35c}}
+.line .d,.bfrow .d{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--line);vertical-align:middle}.line .d.y{background:var(--ok,#067a6f)}
 </style>
 </head>
 <body>
@@ -1129,8 +1132,8 @@ async function startEdit(o){
   S.editing=o.no; S.clientId=null;
   S.partner={id:o.partnerId, name:o.partner, loc:o.loc};
   S.cart=o.items.map(l=>{ const c=cat&&cat.by[String(l.p).toUpperCase()]; return {p:l.p,d:l.d,n:l.n,r:l.r,s:l.s||'',sp:l.sp||'',q:l.q,br:c?c.br:0,ho:c?c.ho:0,bf:l.bf||'BRANCH',keep:(l.bf||'BRANCH')!=='HO'?1:0}; });
-  S.cd=o.cd||''; S.remarks=o.remarks||'';
-  go('order'); toast('Editing '+o.no+' — change anything, then Review');
+  S.cd=o.cd||''; S.remarks=o.remarks||''; S.editSp=o.sp===S.user.code?'':o.spName;
+  go('order'); toast('Editing '+o.no+(S.editSp?' (placed by '+S.editSp+')':'')+' — change anything, then Review');
 }
 function cancelEdit(){ S.editing=null; S.cart=[]; S.partner=null; S.cd=''; S.remarks=''; loadDraft(); viewOrder(); }
 function saveDraft(){ store.set(draftKey(), {cart:S.cart, partner:S.partner, cd:S.cd, remarks:S.remarks}); }
@@ -1187,7 +1190,7 @@ function addToCart(p, el){
   const it = S.catalog[S.branch].by[p.toUpperCase()]; if(!it) return;
   const ex = S.cart.find(l=>l.p===it.p);
   if(ex){ ex.q = (+ex.q||0)+1; toast(it.p+' qty '+ex.q); }
-  else { S.cart.push({p:it.p, d:it.d, n:it.n, r:it.n, s:'', q:1, br:it.br, ho:it.ho, bf: it.br?'BRANCH':it.ho?'HO':'BRANCH'}); toast('Added '+it.p); }
+  else { const obf=S.cart.length?bfOf(S.cart[0]):(it.br?'BRANCH':it.ho?'HO':'BRANCH'); S.cart.push({p:it.p, d:it.d, n:it.n, r:it.n, s:'', q:1, br:it.br, ho:it.ho, bf:obf}); toast('Added '+it.p+(obf==='HO'?' (bill from HO)':'')); }
   if(el){ el.classList.add('added'); setTimeout(()=>el.classList.remove('added'),600); }
   saveDraft(); renderCart();
   if(!ex){ const q=$('#q'); q.value=''; refreshSearch(); $('#qc').classList.add('hidden');
@@ -1250,7 +1253,12 @@ function renderCart(){
   const a=$('#cartArea'); if(!a) return;
   if(!S.cart.length){ a.innerHTML=''; $('#sumbar').innerHTML=''; return; }
   const re=S.boot.settings.allowRateEdit;
-  a.innerHTML = `<div class="card"><div class="ct"><h3>Order lines · ${S.cart.length}</h3><button class="btn ghost sm" id="clr">Clear</button></div>
+  const obf=S.cart.every(l=>bfOf(l)==='HO')?'HO':S.cart.every(l=>bfOf(l)==='BRANCH')?'BRANCH':'';
+  a.innerHTML = `<div class="card"><div class="bfrow" style="margin:0"><div class="lbl">Bill this order from</div><div class="bfseg" id="obf">
+        <button class="${obf==='BRANCH'?'on':''}" data-bf="BRANCH"><span class="d ${S.cart.every(l=>l.br)?'y':''}"></span>${esc(S.branch)}</button>
+        <button class="${obf==='HO'?'on':''}" data-bf="HO"><span class="d ${S.cart.every(l=>l.ho)?'y':''}"></span>Head Office</button></div></div>
+      <div class="small muted" style="margin-top:6px">${obf?'All SKUs in this order are billed from '+(obf==='HO'?'Head Office':esc(S.branch))+'. For SKUs from the other place, place a separate order.':'<b style="color:var(--bad)">Pick one: an order is billed either from '+esc(S.branch)+' or from Head Office.</b>'}</div></div>
+    <div class="card"><div class="ct"><h3>Order lines · ${S.cart.length}</h3><button class="btn ghost sm" id="clr">Clear</button></div>
     ${S.cart.map((l,i)=>{const v=lineVals(l); return `<div class="line" data-p="${esc(l.p)}">
       <div class="top"><div class="grow"><div class="row" style="gap:8px;flex-wrap:wrap"><span class="code">${esc(l.p)}</span>${avail(l)}</div><div class="desc">${esc(l.d)}</div></div><button class="x" data-i="${i}" aria-label="Remove">×</button></div>
       <div class="lgrid">
@@ -1259,10 +1267,8 @@ function renderCart(){
         <div class="mini"><div class="lbl">Scheme ₹/pc</div><input class="sch num" data-i="${i}" inputmode="decimal" placeholder="0" value="${esc(l.s)}"></div>
         <div class="mini"><div class="lbl">Scheme %</div><input class="schp num" data-i="${i}" inputmode="decimal" placeholder="0" value="${esc(l.sp||'')}"></div>
       </div>
-      <div class="bfrow"><div class="lbl">Bill from</div><div class="bfseg" data-bfi="${i}">
-        <button class="${bfOf(l)==='BRANCH'?'on':''}" data-bf="BRANCH"><span class="d ${l.br?'y':''}"></span>${esc(S.branch)}</button>
-        <button class="${bfOf(l)==='HO'?'on':''}" data-bf="HO"><span class="d ${l.ho?'y':''}"></span>Head Office</button></div></div>
-      ${bfOf(l)==='BRANCH'&&!l.br&&!l.keep&&branchBlocks()?`<div class="small" style="color:var(--bad);margin-top:6px;font-weight:600">Not in stock at ${esc(S.branch)} today — can't bill from branch. Switch to Head Office${l.ho?'':' (no stock there either)'} or ask accounts.</div><button class="rcv ask" style="margin-top:6px" data-ask="${esc(l.p)}" ${S.asked[l.p]?'disabled':''}>${S.asked[l.p]?'Asked ✓':'Ask accounts'}</button>`
+      <div class="small" style="margin-top:6px"><span class="d ${l.br?'y':''}"></span> ${esc(S.branch)} ${l.br?'in stock':'no stock'} · <span class="d ${l.ho?'y':''}"></span> HO ${l.ho?'in stock':'no stock'}</div>
+      ${bfOf(l)==='BRANCH'&&!l.br&&!l.keep&&branchBlocks()&&!canAct()?`<div class="small" style="color:var(--bad);margin-top:6px;font-weight:600">Not in stock at ${esc(S.branch)} today — can't bill from branch. Switch to Head Office${l.ho?'':' (no stock there either)'} or ask accounts.</div><button class="rcv ask" style="margin-top:6px" data-ask="${esc(l.p)}" ${S.asked[l.p]?'disabled':''}>${S.asked[l.p]?'Asked ✓':'Ask accounts'}</button>`
   :(bfOf(l)==='BRANCH'&&!l.br)||(bfOf(l)==='HO'&&!l.ho)?`<div class="small" style="color:var(--bad);margin-top:6px;font-weight:600">Not in stock at ${bfOf(l)==='HO'?'Head Office':esc(S.branch)} today</div>`:''}
       <div class="lfoot"><span>NRP ${inr(l.n)}${re && +l.r!==+l.n?' · rate changed':''}</span><span>Taxable <b class="num" data-tx="${i}">${inr2(v.tx)}</b></span></div>
     </div>`;}).join('')}
@@ -1281,7 +1287,7 @@ function renderCart(){
   a.querySelectorAll('.rate').forEach(inp=>inp.addEventListener('input',()=>{ const i=+inp.dataset.i, l=S.cart[i]; l.r=inp.value.replace(/[^0-9.]/g,''); inp.classList.toggle('changed', +inp.value!==+l.n); syncSch(i, l.spMode?'pct':'rs'); saveDraft(); updLine(i); }));
   a.querySelectorAll('.sch').forEach(inp=>inp.addEventListener('input',()=>{ const i=+inp.dataset.i; S.cart[i].s=inp.value.replace(/[^0-9.]/g,''); S.cart[i].spMode=false; syncSch(i,'rs'); saveDraft(); updLine(i); }));
   a.querySelectorAll('.schp').forEach(inp=>inp.addEventListener('input',()=>{ const i=+inp.dataset.i; S.cart[i].sp=inp.value.replace(/[^0-9.]/g,''); S.cart[i].spMode=true; syncSch(i,'pct'); saveDraft(); updLine(i); }));
-  a.querySelectorAll('[data-bfi]').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.onclick=()=>{ S.cart[+sg.dataset.bfi].bf=b.dataset.bf; saveDraft(); renderCart(); }));
+  $('#obf').querySelectorAll('button').forEach(b=>b.onclick=()=>{ S.cart.forEach(l=>l.bf=b.dataset.bf); saveDraft(); renderCart(); });
   $('#cd').addEventListener('input',e=>{ S.cd=e.target.value.replace(/[^0-9.]/g,''); saveDraft(); S.cart.forEach((_,i)=>updLine(i)); });
   $('#rm').addEventListener('input',e=>{ S.remarks=e.target.value; saveDraft(); });
   $('#clr').onclick=()=>{ if(confirm('Clear all lines?')){ S.cart=[]; saveDraft(); renderCart(); } };
@@ -1297,7 +1303,8 @@ function renderSum(){
 function review(){
   if(!S.partner){ toast('Select a partner first', true); const pq=$('#pq'); if(pq){ pq.focus(); pq.scrollIntoView({block:'center',behavior:'smooth'}); } return; }
   const bad=S.cart.find(l=>!(+l.q>0)); if(bad) return toast('Enter quantity for '+bad.p,true);
-  const blk=branchBlocks()?S.cart.filter(l=>bfOf(l)==='BRANCH'&&!l.br&&!l.keep):[];
+  if(new Set(S.cart.map(bfOf)).size>1) return toast('Pick one: bill the whole order from '+S.branch+' or from Head Office (put the others in a separate order)',true);
+  const blk=branchBlocks()&&!canAct()?S.cart.filter(l=>bfOf(l)==='BRANCH'&&!l.br&&!l.keep):[];
   if(blk.length){ toast('Not in stock at '+S.branch+' today: '+blk.map(l=>l.p).join(', ')+'. Bill from Head Office or ask accounts.',true); const e=document.querySelector('.line[data-p="'+blk[0].p+'"]'); if(e) e.scrollIntoView({block:'center',behavior:'smooth'}); return; }
   const t=totals(), none=S.cart.filter(l=>!l.br&&!l.ho);
   openSheet(`<h2>Review order</h2><p class="muted small">${esc(S.partner.name)} · ${esc(S.partner.loc)} · ${esc(S.branch)}</p>
@@ -1319,22 +1326,23 @@ async function send(){
     const payload={branch:S.branch, partnerId:S.partner.id, partnerName:S.partner.name, loc:S.partner.loc,
       items:S.cart.map(l=>({p:l.p,q:+l.q,r:+l.r||l.n,s:+l.s||0,sp:+l.sp||0,bf:bfOf(l)})), cd:+S.cd||0, remarks:S.remarks, clientId:S.clientId};
     const r=editing ? await call('editOrder',Object.assign({orderNo:editing},payload)) : await call('placeOrder',payload);
-    const sent={no:r.orderNo, partner:S.partner, cart:S.cart.slice(), t:totals()};
-    store.del(draftKey()); S.editing=null; S.cart=[]; S.partner=null; S.cd=''; S.remarks=''; S.clientId=null;
+    const sent={no:r.orderNo, partner:S.partner, cart:S.cart.slice(), t:totals(), cd:+S.cd||0};
+    S.lastEditSp=editing?S.editSp:''; store.del(draftKey()); S.editing=null; S.editSp=''; S.cart=[]; S.partner=null; S.cd=''; S.remarks=''; S.clientId=null;
     if(S.user.role==='SALES') refreshMyOrders(true); else loadPending(true);
     C.del('sales_');
-    openSheet(`<div class="success"><div class="tick">${IC.check}</div><h2>${editing?'Changes saved':'Order sent'}</h2><p class="muted">${esc(r.orderNo)} ${editing?'is updated and back with your branch accountant.':'is now with your branch accountant.'}</p>
+    openSheet(`<div class="success"><div class="tick">${IC.check}</div><h2>${editing?'Changes saved':'Order sent'}</h2><p class="muted">${esc(r.orderNo)} ${editing?(S.lastEditSp?'is updated. '+esc(S.lastEditSp)+' has been told in the order chat.':'is updated and back with your branch accountant.'):'is now with your branch accountant.'}</p>
       <div class="kv big" style="justify-content:center;gap:10px"><span class="num">${inr2(sent.t.t)}</span></div></div>
       ${r.wa?`<button class="btn block" id="wa" style="background:#16a34a;color:#fff;margin-top:6px">Send order to party on WhatsApp</button>`:''}
       <div class="row" style="margin-top:8px"><button class="btn ghost grow" id="shr">Share</button><button class="btn primary grow" id="nw">New order</button></div>`, ()=>{
         if(r.wa) $('#wa').onclick=()=>window.open('https://wa.me/'+r.wa.mobile+'?text='+encodeURIComponent(r.wa.text),'_blank');
         $('#nw').onclick=()=>{ closeSheet(); viewOrder(); };
-        $('#shr').onclick=()=>shareText(orderText({no:r.orderNo, partner:sent.partner.name, loc:sent.partner.loc, branch:S.branch, items:sent.cart.map(l=>({p:l.p,d:l.d,q:l.q,r:+l.r||l.n,bf:bfOf(l)})), invoice:sent.t.t}));
+        $('#shr').onclick=()=>shareText(orderText({no:r.orderNo, partner:sent.partner.name, loc:sent.partner.loc, branch:S.branch, items:sent.cart.map(l=>({p:l.p,d:l.d,q:l.q,r:+l.r||l.n,s:+l.s||0,bf:bfOf(l)})), cd:sent.cd, invoice:sent.t.t}));
       });
   }catch(e){ toast(e.message,true); b.disabled=false; b.textContent=editing?'Save changes to '+editing:'Send to branch accountant'; }
 }
 function orderText(o){
-  return `*Sales Order ${o.no}*\nPartner: ${o.partner} (${o.loc})\nBranch: ${o.branch}${o.spName?'\nBy: '+o.spName:''}\n\n`+o.items.map(l=>`${l.p} × ${l.q} @ ${l.r}${l.bf==='HO'?' (bill from HO)':''}`).join('\n')+`\n\nInvoice value: ₹${Number(o.invoice).toFixed(2)}`;
+  const net=l=>{ const v = l.t && l.q ? l.t/l.q : Math.max((+l.r||0)-(+l.s||0),0)*(1-(+o.cd||0)/100); return (Math.round(v*100)/100).toFixed(2); };
+  return `*Sales Order ${o.no}*\nPartner: ${o.partner} (${o.loc})\nBranch: ${o.branch}${o.spName?'\nBy: '+o.spName:''}\n\n`+o.items.map(l=>`${l.p} × ${l.q} @ ₹${net(l)}${l.bf==='HO'?' (bill from HO)':''}`).join('\n')+`\n\n_Rates are net (after scheme / discount), before GST_\nInvoice value: ₹${Number(o.invoice).toFixed(2)}`;
 }
 async function shareText(t){
   try{ if(navigator.share){ await navigator.share({text:t}); return; } }catch(e){ }
@@ -1412,8 +1420,8 @@ function orderCard(o,opt={}){
   const sel = opt.select && o.status==='PENDING' ? `<div class="cb ${S.selected.has(o.no)?'on':''}" data-cb="${esc(o.no)}">${S.selected.has(o.no)?IC.check.replace('stroke-width="3"','stroke-width="4" width="14" height="14"'):''}</div>`:'';
   return `<div class="ord ${S.selected.has(o.no)&&opt.select?'sel':''}" data-no="${esc(o.no)}">
     <div class="h" data-tg="${esc(o.no)}">${sel}<div class="grow"><div class="pn">${esc(o.partner)}</div>
-      <div class="sub">${esc(o.loc)} · ${esc(o.no)} · ${fmtDate(o.created,true)}${opt.showSp&&!opt.mine?' · By <b style="color:var(--ink2)">'+esc(o.spName)+'</b>':''}${opt.showBranch?' · '+esc(o.branch):''}</div>
-      <div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap"><span class="chip st-${o.status}">${stLabel(o,opt)}</span>${opt.mine && !o.seen && (o.status==='EXECUTED'||o.status==='CANCELLED')?'<span class="chip new">NEW</span>':''}${o.unread?`<span class="chip msg">${o.unread} new message${o.unread>1?'s':''}</span>`:''}${o.items.some(l=>l.bf==='HO')?'<span class="chip bf HO">HO billing</span>':''}<span class="chip" style="background:var(--soft);color:var(--mute)">${o.items.length} SKU · ${o.qty} pcs</span>${opt.age && (o.status==='PENDING'||o.status==='QUERY')?`<span class="chip age ${ageDays(o.created)>=2?'old':''}">${ageText(o.created)}</span>`:''}</div></div>
+      <div class="sub">${esc(o.loc)} · ${esc(o.no)} · ${fmtDate(o.created,true)}${o.status==='EXECUTED'&&o.doe?' · <b style="color:var(--ink2)">DOE '+fmtDate(o.doe+'T12:00:00')+'</b>':''}${opt.showSp&&!opt.mine?' · By <b style="color:var(--ink2)">'+esc(o.spName)+'</b>':''}${opt.showBranch?' · '+esc(o.branch):''}</div>
+      <div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap"><span class="chip st-${o.status}">${stLabel(o,opt)}</span>${opt.mine && !o.seen && (o.status==='EXECUTED'||o.status==='CANCELLED')?'<span class="chip new">NEW</span>':''}${o.unread?`<span class="chip msg">${o.unread} new message${o.unread>1?'s':''}</span>`:''}${o.items.some(l=>l.bf==='HO')?'<span class="chip bf HO">HO billing</span>':''}${o.modifiedBy&&o.modifiedBy.indexOf('('+o.sp+')')<0&&(o.status==='PENDING'||o.status==='QUERY')?'<span class="chip modc">Modified by accounts</span>':''}<span class="chip" style="background:var(--soft);color:var(--mute)">${o.items.length} SKU · ${o.qty} pcs</span>${opt.age && (o.status==='PENDING'||o.status==='QUERY')?`<span class="chip age ${ageDays(o.created)>=2?'old':''}">${ageText(o.created)}</span>`:''}</div></div>
       <div><div class="amt num">${inr(o.invoice)}</div><div class="small muted" style="text-align:right">taxable ${inr(o.taxable)}</div></div></div>
     ${propBox(o,opt)}
     <div class="body hidden" id="b_${esc(o.no)}">
@@ -1423,7 +1431,8 @@ function orderCard(o,opt={}){
       <div class="kv"><span>GST</span><b class="num">${inr2(o.gst)}</b></div>
       <div class="kv"><span>Invoice value</span><b class="num">${inr2(o.invoice)}</b></div>
       ${o.remarks?`<p class="small muted">Remarks: ${esc(o.remarks)}</p>`:''}
-      ${o.status!=='PENDING'?`<p class="small muted">${o.status[0]+o.status.slice(1).toLowerCase()} by ${esc(o.statusBy)} · ${fmtDate(o.statusAt,true)}${o.erp?' · '+esc(o.erp):''}</p>`:''}
+      ${o.status!=='PENDING'&&o.status!=='QUERY'?`<p class="small muted">${o.status[0]+o.status.slice(1).toLowerCase()} by ${esc(o.statusBy)} · ${o.status==='EXECUTED'&&o.doe?'<b style="color:var(--ink2)">DOE '+fmtDate(o.doe+'T12:00:00')+'</b> · marked '+fmtDate(o.statusAt,true):fmtDate(o.statusAt,true)}${o.erp?' · '+esc(o.erp):''}</p>`:''}
+      ${o.modifiedBy?`<p class="small muted">Modified by <b style="color:var(--ink2)">${esc(o.modifiedBy)}</b> · ${fmtDate(o.modifiedAt,true)}</p>`:''}
       ${o.inv?`<p class="small muted">${o.inv.gone?`Invoice was attached ${fmtDate(o.inv.at)} and auto-deleted after ${o.inv.keep} days.`:`Invoice attached ${fmtDate(o.inv.at,true)} · kept ${o.inv.keep} days`}</p>`:''}
       <div class="acts">
         <button class="btn ghost sm cbtn" data-chat="${esc(o.no)}">Chat${o.unread?` <span class="cbadge">${o.unread}</span>`:''}</button>
@@ -1431,9 +1440,9 @@ function orderCard(o,opt={}){
         <button class="btn ghost sm" data-csv="${esc(o.no)}">CSV</button>
         ${o.inv && !o.inv.gone?`<button class="btn ghost sm" data-inv="${esc(o.no)}">View invoice</button>`:''}
         ${canAct() && opt.manage && o.status!=='CANCELLED'?`<button class="btn ghost sm" data-att="${esc(o.no)}">${o.inv && !o.inv.gone?'Replace invoice':'Attach invoice'}</button>`:''}
-        ${opt.manage && o.status==='PENDING'?`<button class="btn ok sm" data-ex="${esc(o.no)}">Mark executed</button><button class="btn ghost sm" data-mod="${esc(o.no)}">Modify &amp; ask</button><button class="btn danger sm" data-cn="${esc(o.no)}">Cancel</button>`:''}
-        ${opt.manage && o.status==='QUERY'?`<button class="btn ghost sm" data-mod="${esc(o.no)}">Change proposal</button><button class="btn danger sm" data-cn="${esc(o.no)}">Cancel</button>`:''}
-        ${o.sp===S.user.code && (o.status==='PENDING'||o.status==='QUERY')?`<button class="btn primary sm" data-edit="${esc(o.no)}">Edit order</button>`:''}
+        ${opt.manage && o.status==='PENDING'?`<button class="btn ok sm" data-ex="${esc(o.no)}">Mark executed</button><button class="btn danger sm" data-cn="${esc(o.no)}">Cancel</button>`:''}
+        ${opt.manage && o.status==='QUERY'?`<button class="btn danger sm" data-cn="${esc(o.no)}">Cancel</button>`:''}
+        ${(o.sp===S.user.code || (canAct() && opt.manage)) && (o.status==='PENDING'||o.status==='QUERY')?`<button class="btn primary sm" data-edit="${esc(o.no)}">${o.sp===S.user.code?'Edit order':'Edit order (price, qty, SKU…)'}</button>`:''}
         ${opt.manage && o.status==='EXECUTED'?`<button class="btn danger sm" data-cn="${esc(o.no)}">Cancel order</button>`:''}
         ${opt.manage && o.status==='CANCELLED'?`<button class="btn ghost sm" data-re="${esc(o.no)}">Move back to pending</button>`:''}
       </div>
@@ -1564,14 +1573,15 @@ async function viewPending(){
       <div class="pf1"><div class="lbl">Placed by</div><select class="field" id="pfBy"><option value="">Everyone</option></select></div>
       <div class="pf2"><div class="lbl">Order date from</div><input class="field" type="date" id="pfF" value="${S.pf.from}"></div>
       <div class="pf2"><div class="lbl">to</div><input class="field" type="date" id="pfT" value="${S.pf.to}"></div>
+      <div class="pf2"><div class="lbl">Bill from</div><select class="field" id="pfB"><option value="">All</option><option value="HO" ${S.pf.bill==='HO'?'selected':''}>HO billing</option><option value="BRANCH" ${S.pf.bill==='BRANCH'?'selected':''}>Branch billing</option></select></div>
       <div class="pf2"><div class="lbl">Sort</div><select class="field" id="pfS"><option value="old" ${S.pf.sort==='old'?'selected':''}>Oldest first</option><option value="new" ${S.pf.sort==='new'?'selected':''}>Newest first</option></select></div>
       <button class="btn ghost sm hidden" id="pfX" style="align-self:flex-end">Clear</button>
     </div>
     <div id="plist">${'<div class="skel"></div>'.repeat(4)}</div></div>`;
   $('#pr').onclick=()=>loadPending(false);
-  const pfo=()=>{ S.pf.by=$('#pfBy').value; S.pf.from=$('#pfF').value; S.pf.to=$('#pfT').value; S.pf.sort=$('#pfS').value; drawPending(C.get('open')||[]); };
-  ['pfBy','pfF','pfT','pfS'].forEach(id=>$('#'+id).onchange=pfo);
-  $('#pfX').onclick=()=>{ S.pf={by:'',from:'',to:'',sort:S.pf.sort}; $('#pfF').value=''; $('#pfT').value=''; $('#pfBy').value=''; drawPending(C.get('open')||[]); };
+  const pfo=()=>{ S.pf.by=$('#pfBy').value; S.pf.from=$('#pfF').value; S.pf.to=$('#pfT').value; S.pf.sort=$('#pfS').value; S.pf.bill=$('#pfB').value; drawPending(C.get('open')||[]); };
+  ['pfBy','pfF','pfT','pfS','pfB'].forEach(id=>$('#'+id).onchange=pfo);
+  $('#pfX').onclick=()=>{ S.pf={by:'',from:'',to:'',sort:S.pf.sort,bill:''}; $('#pfF').value=''; $('#pfT').value=''; $('#pfBy').value=''; $('#pfB').value=''; drawPending(C.get('open')||[]); };
   $('#gseg').querySelectorAll('button').forEach(b=>b.onclick=()=>{ S.filters.grp=b.dataset.g; $('#gseg').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); drawPending(C.get('open')||[]); });
   const c=C.get('open'); if(c) drawPending(c);
   loadPending(!!c);
@@ -1589,9 +1599,10 @@ function drawPending(all){
   const sel=$('#pfBy'); if(sel){ const ppl={}; inB.forEach(o=>ppl[o.sp]=o.spName); const cur=S.pf.by;
     sel.innerHTML='<option value="">Everyone ('+Object.keys(ppl).length+')</option>'+Object.entries(ppl).sort((a,b)=>a[1].localeCompare(b[1])).map(([c,n])=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(n)} (${esc(c)})</option>`).join(''); }
   const day=iso=>isoDay(new Date(iso));
-  const shown=inB.filter(o=>(!S.pf.by||o.sp===S.pf.by) && (!S.pf.from||day(o.created)>=S.pf.from) && (!S.pf.to||day(o.created)<=S.pf.to))
+  const isHO=o=>o.items.some(l=>l.bf==='HO');
+  const shown=inB.filter(o=>(!S.pf.by||o.sp===S.pf.by) && (!S.pf.from||day(o.created)>=S.pf.from) && (!S.pf.to||day(o.created)<=S.pf.to) && (!S.pf.bill||(S.pf.bill==='HO'?isHO(o):!isHO(o))))
     .sort((a,b)=> S.pf.sort==='new' ? (a.created<b.created?1:-1) : (a.created>b.created?1:-1));
-  const fx=$('#pfX'); if(fx) fx.classList.toggle('hidden', !(S.pf.by||S.pf.from||S.pf.to));
+  const fx=$('#pfX'); if(fx) fx.classList.toggle('hidden', !(S.pf.by||S.pf.from||S.pf.to||S.pf.bill));
   const tot=shown.reduce((a,o)=>a+o.invoice,0);
   $('#pinfo').textContent=`${S.bsel.length?S.bsel.join(', '):(isMgr()&&S.user.branches.length>1?'All branches':S.user.branches[0])} · ${shown.length} orders · ${inr(tot)}`;
   if(!shown.length){ $('#plist').innerHTML=`<div class="card empty">${inB.length?'No pending orders match these filters.':'All clear — no pending orders. New orders appear here automatically.'}</div>`; $('#sumbar').innerHTML=''; return; }
@@ -1619,15 +1630,19 @@ function drawSelBar(shown){
 }
 function execute(nos){
   let file=null;
-  openSheet(`<h2>Mark ${nos.length>1?nos.length+' orders':'order'} executed</h2><p class="muted small">The sales person is notified and it counts as his sale.</p>
+  const today=isoDay(new Date()), ods=(C.get('open')||[]).filter(o=>nos.includes(o.no)).map(o=>isoDay(new Date(o.created))), minD=ods.reduce((m,d)=>d>m?d:m,'');
+  openSheet(`<h2>Mark ${nos.length>1?nos.length+' orders':'order'} executed</h2><p class="muted small">The sales person is notified and it counts as his sale on the date of execution.</p>
+    <div class="lbl" style="margin-top:14px">Date of execution (DOE) *</div><input class="field" type="date" id="doe" value="${today}" max="${today}" ${minD?`min="${minD}"`:''} style="height:46px">
+    <div class="small muted" style="margin-top:4px">${minD&&minD<today?'Order placed '+fmtDate(minD+'T12:00:00')+' — pick the day it was actually executed.':'Today, unless it was executed on an earlier day.'}</div>
     <div class="lbl" style="margin-top:14px">ERP invoice / SO no. (optional)</div><input class="field" id="erp" placeholder="e.g. 15COEI1806">
     ${nos.length===1?`<div class="lbl" style="margin-top:12px">Invoice copy (optional)</div><button class="btn ghost block" id="exF" type="button">Attach PDF or photo</button>
       <div class="small muted" style="margin-top:4px">Kept for ${S.boot.settings.invoiceKeepDays||7} days, then deleted automatically.</div>`:''}
     <button class="btn ok block" id="exGo" style="margin-top:16px">Confirm executed</button>`, ()=>{
       const fb=$('#exF'); if(fb) fb.onclick=async()=>{ const f=await pickFile('application/pdf,image/*'); if(f){ file=f; fb.textContent='✓ '+f.name; } };
-      $('#exGo').onclick=async()=>{ const b=$('#exGo'); b.disabled=true; const erp=$('#erp').value;
+      $('#exGo').onclick=async()=>{ const doe=$('#doe').value; if(!doe) return toast('Pick the date of execution',true); if(doe>today) return toast('Date of execution cannot be in the future',true); if(minD&&doe<minD) return toast('Date of execution is before the order date',true);
+        const b=$('#exGo'); b.disabled=true; const erp=$('#erp').value;
         if(file){ try{ b.innerHTML='<span class="spin"></span> Uploading invoice…'; await uploadInvoice(nos[0], file, erp); }catch(e){ toast(e.message,true); b.disabled=false; b.textContent='Confirm executed'; return; } }
-        setStatus(nos,'EXECUTED',{erp}); };
+        setStatus(nos,'EXECUTED',{erp,doe}); };
     });
 }
 function cancelOrder(no){
@@ -1647,9 +1662,9 @@ async function setStatus(nos,status,extra={}){
 }
 function csvCell(v){ v=String(v==null?'':v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 function exportCsv(orders){
-  const head=['Order No','Date','Branch','Sales Person','Partner','Location','Partno','Description','Qty','Bill From','NRP','Rate','Scheme/pc','CD %','Taxable','GST','Line Total','Stock At','Remarks'];
+  const head=['Order No','Date','Branch','Sales Person','Partner','Location','Partno','Description','Qty','Bill From','NRP','Rate','Scheme/pc','CD %','Taxable','GST','Line Total','Stock At','Remarks','Date of Execution','Modified By'];
   const rows=[head];
-  orders.forEach(o=>o.items.forEach(l=>rows.push([o.no,fmtDate(o.created,true),o.branch,o.spName,o.partner,o.loc,l.p,l.d,l.q,(l.bf==='HO'?'HEAD OFFICE':o.branch),l.n,l.r,l.s||0,o.cd||0,l.t,l.g,(l.t+l.g).toFixed(2),l.at,o.remarks])));
+  orders.forEach(o=>o.items.forEach(l=>rows.push([o.no,fmtDate(o.created,true),o.branch,o.spName,o.partner,o.loc,l.p,l.d,l.q,(l.bf==='HO'?'HEAD OFFICE':o.branch),l.n,l.r,l.s||0,o.cd||0,l.t,l.g,(l.t+l.g).toFixed(2),l.at,o.remarks,o.doe?fmtDate(o.doe+'T12:00:00'):'',o.modifiedBy||''])));
   const csv=rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
   const tsv=rows.map(r=>r.join('\t')).join('\n');
   const name=`orders_${(S.user.role==='SALES'?S.user.code:(S.bsel.join('-')||'all'))}_${new Date().toISOString().slice(0,10)}.csv`;
@@ -1769,7 +1784,7 @@ async function viewHistory(){
   const f=S.filters.hist; S.histRange=S.histRange||defaultRange(); const R=S.histRange;
   const key=()=>'hist_'+f+'_'+R.from+'_'+R.to;
   $('#main').innerHTML=`<div class="view"><div class="seg" id="hseg">${['EXECUTED','CANCELLED'].map(s=>`<button data-s="${s}" class="${f===s?'on':''}">${s[0]+s.slice(1).toLowerCase()}</button>`).join('')}</div>
-    ${rangeBar(R, f==='EXECUTED'?'Executed':'Cancelled')}
+    ${rangeBar(R, f==='EXECUTED'?'Executed (DOE)':'Cancelled')}
     <div id="bcw"></div>
     <div class="row" style="gap:8px;margin-bottom:12px"><div class="sbox grow" style="margin:0">${IC.search}<input class="field" id="hq" placeholder="Partner name, order no, sales person"></div><button class="btn ghost sm" id="hx">Export</button></div>
     <div class="small muted" id="hinfo" style="margin:-4px 2px 8px"></div><div id="hlist">${'<div class="skel"></div>'.repeat(3)}</div></div>`;
@@ -1816,7 +1831,7 @@ async function viewTeam(){
       <div class="kpis"><div class="kpi"><div class="lab">Sales persons</div><div class="v num">${list.length}</div></div><div class="kpi"><div class="lab">Pending value</div><div class="v num">${inr(P)}</div></div><div class="kpi"><div class="lab">Orders executed</div><div class="v num">${list.reduce((x,s)=>x+s.c,0)}</div></div></div>
       <div class="card"><table class="t"><tr><th>Sales person</th><th class="r">Achieved</th><th class="r">%</th></tr>
       ${list.map(s=>{ const st=whole?s.t:0; return `<tr data-sp="${esc(s.code)}" style="cursor:pointer"><td><b>${esc(s.n)}</b><div class="small muted">${s.c} executed · pending ${inr(s.p)}${st?' · target '+inr(st):''}</div>${st?`<div class="pbar"><i style="width:${Math.min(100,s.a/st*100)}%"></i></div>`:''}</td><td class="r num">${inr(s.a)}</td><td class="r num">${st?(s.a/st*100).toFixed(0)+'%':'—'}</td></tr>`; }).join('')||'<tr><td colspan="3" class="empty">No sales persons.</td></tr>'}</table></div>
-      <div class="small muted" style="margin:-4px 4px 10px">Orders placed in these dates. ${whole?'':'Targets show for a whole month only.'}</div>`;
+      <div class="small muted" style="margin:-4px 4px 10px">Executed value counts on the date of execution (DOE); pending on the order date. ${whole?'':'Targets show for a whole month only.'}</div>`;
     setTimeout(()=>{ const hb=$('#hb'); if(hb&&T) hb.style.width=Math.min(100,A/T*100)+'%'; },60); }
     document.querySelectorAll('[data-sp]').forEach(tr=>tr.onclick=()=>{ const s=sp[tr.dataset.sp]; const ex=r.orders.filter(o=>o.sp===s.code&&o.status==='EXECUTED');
       openSheet(`<h2>${esc(s.n)}</h2><p class="muted small">${esc(rangeLabel(R))} · ${inr(s.a)} executed</p>${breakdown(ex)}`, bindBreakdown); });
@@ -1845,7 +1860,9 @@ function drawOverview(r){
       <button class="mtile" data-m="users"><span>Logins, PINs, targets</span><b>Users</b></button>
       <button class="mtile" data-m="partners"><span>Edit, WhatsApp, deactivate</span><b>Partners</b></button>
       <button class="mtile" data-m="branches"><span>Stock depot, account IDs</span><b>Branches</b></button>
-      <button class="mtile" data-m="push"><span>Pop-up to phones, with emoji</span><b>Send notification</b></button></div>
+      <button class="mtile" data-m="push"><span>Pop-up to phones, with emoji</span><b>Send notification</b></button>
+      <button class="mtile" data-m="mail"><span>Mail to staff, with attachment</span><b>Send mail</b></button>
+      <button class="mtile" data-m="sku"><span>Arrived today, not in report</span><b>Add new SKU</b></button></div>
       <div class="row" style="flex-wrap:wrap;margin-top:12px"><button class="btn ghost sm" id="aS" style="display:none">Create sales users from report</button></div></div>
     <div class="card"><div class="ct"><h3>Pending by branch</h3></div><table class="t"><tr><th>Branch</th><th class="r">Orders</th><th class="r">Value</th></tr>${pb.map(([b,v])=>`<tr data-pb="${esc(b)}" style="cursor:pointer"><td><b>${esc(b)}</b></td><td class="r num">${v.pending}</td><td class="r num">${inr(v.value)}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">No pending orders</td></tr>'}</table></div>
     <div class="card"><div class="ct" id="logHead" style="cursor:pointer;margin:0"><h3>Activity log · ${r.logCount||0} entries</h3><span class="small" style="color:var(--brand);font-weight:700" id="logTog">Show ▾</span></div><div id="logBody" class="hidden" style="margin-top:12px"></div></div>`;
@@ -1855,7 +1872,7 @@ function drawOverview(r){
   $('#aU').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
     rd.onload=async()=>{ try{ const b64=rd.result.split(',')[1]; const x=await call('adminUploadReport',{base64:b64,name:f.name}); toast(x.message); afterStock(); }catch(err){ toast(err.message,true);} };
     rd.readAsDataURL(f); };
-  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>({users:viewUsers,partners:viewPartners,branches:viewBranches,push:viewPush}[b.dataset.m])());
+  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>({users:viewUsers,partners:viewPartners,branches:viewBranches,push:viewPush,mail:viewMail,sku:viewAddSku}[b.dataset.m])());
   document.querySelectorAll('[data-pb]').forEach(tr=>tr.onclick=()=>{ S.bsel=[tr.dataset.pb]; S.branch=tr.dataset.pb; renderHeader(); go('pending'); });
   $('#logHead').onclick=toggleLog;
 }
@@ -2032,6 +2049,87 @@ async function viewPush(){
     catch(e){ toast(e.message,true); } finally{ b.disabled=false; } };
   const loadLog=()=>call('adminPushLog',{},{silent:true}).then(l=>{ if(!$('#ntLog')) return; $('#ntLog').innerHTML=l.length?l.map(x=>`<div class="kv" style="align-items:flex-start"><span><b style="color:var(--ink)">${esc(x.title)}</b><br>${esc(x.body)}</span><span class="r" style="white-space:nowrap">${fmtDate(x.at,true)}<br>${x.people} people · ${esc(x.by)}</span></div>`).join(''):'Nothing sent from here yet.'; }).catch(()=>{});
   loadLog();
+}
+
+/* ---------- Manage: who gets it (shared by notification + mail) ---------- */
+function audiencePicker(A, count){
+  const ROLES=[['SALES','Sales'],['HOD','Sales HOD'],['ACCOUNTANT','Accounts'],['ADMIN','Admin']];
+  const el=$('#auPick'), tg=(arr,v)=>{ const i=arr.indexOf(v); if(i<0) arr.push(v); else arr.splice(i,1); };
+  const pick=()=>{
+    if(A.type==='ALL') el.innerHTML='<div class="small muted">Every active user.</div>';
+    if(A.type==='BRANCH') el.innerHTML=`<div class="chips" style="flex-wrap:wrap">${S.user.branches.map(b=>`<button class="fchip ${A.branches.includes(b)?'on':''}" data-nb="${esc(b)}">${esc(b)}</button>`).join('')}</div>`;
+    if(A.type==='ROLE') el.innerHTML=`<div class="chips" style="flex-wrap:wrap">${ROLES.map(([k,l])=>`<button class="fchip ${A.roles.includes(k)?'on':''}" data-nr="${k}">${l}</button>`).join('')}</div>`;
+    if(A.type==='PEOPLE') el.innerHTML=`<div class="sbox" style="margin-bottom:8px">${IC.search}<input class="field" id="npq" placeholder="Search code or name"></div><div id="npl" class="nplist"></div>`;
+    el.querySelectorAll('[data-nb]').forEach(b=>b.onclick=()=>{ tg(A.branches,b.dataset.nb); b.classList.toggle('on'); count(); });
+    el.querySelectorAll('[data-nr]').forEach(b=>b.onclick=()=>{ tg(A.roles,b.dataset.nr); b.classList.toggle('on'); count(); });
+    if(A.type==='PEOPLE'){ const dr=()=>{ const q=norm($('#npq').value), l=(C.get('users')||[]).filter(u=>u.active&&(!q||norm(u.code+' '+u.name).includes(q)));
+        $('#npl').innerHTML=l.slice(0,200).map(u=>`<label class="nprow"><input type="checkbox" data-np="${esc(u.code)}" ${A.codes.includes(u.code)?'checked':''}> <b>${esc(u.code)}</b> ${esc(u.name)} <span class="muted">· ${esc(ROLE_LABEL[u.role]||u.role)}${u.email?'':' · no email'}</span></label>`).join('')||'<div class="small muted">Nobody found</div>';
+        $('#npl').querySelectorAll('[data-np]').forEach(x=>x.onchange=()=>{ tg(A.codes,x.dataset.np); count(); }); };
+      $('#npq').oninput=dr; dr(); if(!C.get('users')) call('adminUsers',{},{silent:true}).then(l=>{ C.set('users',l); if($('#npl')) dr(); }).catch(()=>{}); }
+    count(); };
+  document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{ A.type=b.dataset.a; document.querySelectorAll('[data-a]').forEach(x=>x.classList.toggle('on',x===b)); pick(); });
+  pick();
+}
+const audSeg=A=>`<div class="seg" style="margin:4px 0 10px">${[['ALL','Everyone'],['BRANCH','Branches'],['ROLE','Roles'],['PEOPLE','People']].map(([k,l])=>`<button data-a="${k}" class="${A.type===k?'on':''}">${l}</button>`).join('')}</div>`;
+
+/* ---------- Manage: send a mail to staff ---------- */
+async function viewMail(){
+  S.sub='mail'; window.scrollTo({top:0});
+  const A=S.mailA=S.mailA||{type:'ALL',branches:[],roles:[],codes:[]}; let file=null;
+  $('#main').innerHTML=`<div class="view">${subHead('Send mail')}
+    <div class="card"><div class="lbl">Subject</div><input class="field" id="mlS" maxlength="200" placeholder="e.g. New scheme from Monday">
+      <div class="lbl" style="margin-top:10px">Message</div><textarea class="field" id="mlB" rows="7" placeholder="Dear all,&#10;…"></textarea>
+      <div class="lbl" style="margin-top:10px">Attachment (optional, up to 8 MB)</div><div class="row" style="gap:8px"><button class="btn ghost sm" id="mlF" type="button">Attach a file</button><span class="small muted grow" id="mlFn"></span><button class="btn ghost sm hidden" id="mlFx" type="button">Remove</button></div>
+      <div class="small muted" style="margin-top:8px">Sent from the app's mailbox (Frontech Sales Order). Everyone is in BCC, so nobody sees the others' addresses.</div></div>
+    <div class="card"><div class="lbl">Send to</div>${audSeg(A)}<div id="auPick"></div><div class="small" id="mlN" style="margin-top:10px;font-weight:700"></div></div>
+    <button class="btn primary block" id="mlGo">Send mail</button>
+    <div class="card" style="margin-top:14px"><div class="ct"><h3>Sent recently</h3></div><div id="mlLog" class="small muted">Loading…</div></div></div>`;
+  $('#bk').onclick=()=>{ S.sub=null; viewOverview(); };
+  $('#mlF').onclick=async()=>{ const f=await pickFile('*/*'); if(!f) return; if(f.size>8*1048576) return toast('File is larger than 8 MB',true); file=f; $('#mlFn').textContent='📎 '+f.name+' · '+Math.max(1,Math.round(f.size/1024))+' KB'; $('#mlFx').classList.remove('hidden'); };
+  $('#mlFx').onclick=()=>{ file=null; $('#mlFn').textContent=''; $('#mlFx').classList.add('hidden'); };
+  let cT=0; const count=()=>{ const my=++cT; $('#mlN').textContent='Counting…';
+    call('adminMail',{dry:true,audience:A},{silent:true}).then(r=>{ if(my!==cT) return; S.mailCount=r;
+      $('#mlN').innerHTML = r.people ? `Goes to <b>${r.withEmail}</b> of ${r.people} people <span class="muted" style="font-weight:500">(only those with an email saved in Users)</span>` : '<span style="color:var(--bad)">Nobody selected</span>'; }).catch(e=>{ $('#mlN').textContent=e.message; }); };
+  audiencePicker(A, count);
+  const toB64=f=>new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=()=>res(String(rd.result).split(',')[1]||''); rd.onerror=()=>rej(new Error('Could not read the file')); rd.readAsDataURL(f); });
+  $('#mlGo').onclick=async()=>{ const s=$('#mlS').value.trim(), m=$('#mlB').value.trim(); if(!s) return toast('Write a subject',true); if(!m) return toast('Write the message',true);
+    const n=S.mailCount&&S.mailCount.withEmail; if(!confirm(`Send this mail now to ${n||0} people?\n\n${s}${file?'\n📎 '+file.name:''}`)) return;
+    const b=$('#mlGo'); b.disabled=true; b.innerHTML='<span class="spin"></span> Sending…';
+    try{ const payload={subject:s, body:m, audience:A}; if(file) payload.file={name:file.name, mime:file.type||'application/octet-stream', base64:await toB64(file)};
+      const r=await call('adminMail',payload); toast(`Mail sent to ${r.people} people`); $('#mlS').value=''; $('#mlB').value=''; $('#mlFx').click(); loadLog(); }
+    catch(e){ toast(e.message,true); } finally{ b.disabled=false; b.textContent='Send mail'; } };
+  const loadLog=()=>call('adminMailLog',{},{silent:true}).then(l=>{ if(!$('#mlLog')) return; $('#mlLog').innerHTML=l.length?l.map(x=>`<div class="kv" style="align-items:flex-start"><span><b style="color:var(--ink)">${esc(x.subject)}</b>${x.file?'<br>📎 '+esc(x.file):''}</span><span class="r" style="white-space:nowrap">${fmtDate(x.at,true)}<br>${x.people} people · ${esc(x.by)}</span></div>`).join(''):'Nothing sent from here yet.'; }).catch(()=>{});
+  loadLog();
+}
+
+/* ---------- Manage: add a new SKU that arrived today ---------- */
+async function viewAddSku(){
+  S.sub='sku'; window.scrollTo({top:0});
+  $('#main').innerHTML=`<div class="view">${subHead('Add new SKU')}
+    <p class="small muted" style="margin-top:-4px">For stock that arrived today but is not in the daily report yet. Sales people can order it at once. From tomorrow the daily report takes over.</p>
+    <div class="card"><div class="row" style="gap:8px"><div style="width:44%"><div class="lbl">SKU code *</div><input class="field" id="skC" autocapitalize="characters" placeholder="e.g. MON-0024"></div><div class="grow"><div class="lbl">NRP ₹ *</div><input class="field num" id="skN" inputmode="decimal" placeholder="0"></div></div>
+      <div class="lbl" style="margin-top:10px">Description * (as in the report)</div><input class="field" id="skD" autocapitalize="characters" placeholder="e.g. LED MONITOR 24&quot; FHD">
+      <div class="row" style="gap:8px;margin-top:10px"><div class="grow"><div class="lbl">Category</div><input class="field" id="skG" autocapitalize="characters" placeholder="optional"></div><div class="grow"><div class="lbl">Brand</div><input class="field" id="skB" autocapitalize="characters" placeholder="optional"></div></div>
+      <div class="small" id="skEx" style="margin-top:8px"></div></div>
+    <div class="card"><div class="ct"><h3>Arrived at · quantity</h3></div><div id="skL"><div class="skel"></div></div></div>
+    <button class="btn primary block" id="skGo">Add SKU</button>
+    <div class="card" style="margin-top:14px"><div class="ct"><h3>Added recently</h3></div><div id="skR" class="small muted">Loading…</div></div></div>`;
+  $('#bk').onclick=()=>{ S.sub=null; viewOverview(); };
+  const drawR=r=>{ if(!$('#skR')) return; $('#skR').innerHTML=r.recent.length?r.recent.map(x=>`<div class="kv" style="align-items:flex-start"><span>${esc(x.detail)}</span><span class="r" style="white-space:nowrap">${fmtDate(x.at,true)}</span></div>`).join(''):'Nothing added yet.'; };
+  let info=null;
+  try{ info=await call('adminSkuInfo',{},{silent:true}); }catch(e){ toast(e.message,true); return; }
+  $('#skL').innerHTML=info.locations.map(l=>`<div class="kv"><span><b>${esc(l)}</b></span><input class="field num" data-loc="${esc(l)}" inputmode="numeric" placeholder="0" style="width:110px;height:40px;text-align:right"></div>`).join('');
+  drawR(info);
+  let chkT=0; $('#skC').addEventListener('input',()=>{ clearTimeout(chkT); chkT=setTimeout(async()=>{ const v=$('#skC').value.trim(); if(!v){ $('#skEx').textContent=''; return; }
+    try{ const r=await call('adminSkuInfo',{sku:v},{silent:true}); if(r.item){ $('#skEx').innerHTML=`<span style="color:var(--warn,#a15c07)">Already in the list: <b>${esc(r.item.d)}</b> · NRP ${inr(r.item.n)}. Saving updates it and sets today's quantity at the places below.</span>`; if(!$('#skD').value) $('#skD').value=r.item.d; if(!$('#skN').value) $('#skN').value=r.item.n; } else $('#skEx').textContent='New SKU'; }catch(e){} },400); });
+  $('#skGo').onclick=async()=>{ const locs=[...document.querySelectorAll('[data-loc]')].map(i=>({loc:i.dataset.loc,q:+i.value||0})).filter(x=>x.q>0);
+    const p={sku:$('#skC').value.trim(), d:$('#skD').value.trim(), n:$('#skN').value.trim(), c:$('#skG').value.trim(), b:$('#skB').value.trim(), locs};
+    if(!p.sku||!p.d||!(+p.n>0)) return toast('Enter SKU code, description and NRP',true); if(!locs.length) return toast('Enter the quantity that arrived',true);
+    const b=$('#skGo'); b.disabled=true;
+    try{ const r=await call('adminAddSku',p); toast(r.sku+(r.existed?' updated':' added')+' — sales people can order it now'); S.catalog={};
+      ['skC','skD','skN','skG','skB'].forEach(id=>$('#'+id).value=''); document.querySelectorAll('[data-loc]').forEach(i=>i.value=''); $('#skEx').textContent='';
+      call('adminSkuInfo',{},{silent:true}).then(drawR).catch(()=>{}); }
+    catch(e){ toast(e.message,true); } finally{ b.disabled=false; } };
 }
 
 /* ---------- Manage: branches & depot account IDs ---------- */
